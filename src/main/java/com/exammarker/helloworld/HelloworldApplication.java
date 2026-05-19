@@ -1,26 +1,10 @@
 package com.exammarker.helloworld;
 
-import java.util.List;
-
-import org.springframework.ai.chat.client.ChatClient;
-import org.springframework.ai.chat.messages.SystemMessage;
-import org.springframework.ai.chat.messages.UserMessage;
-import org.springframework.ai.chat.model.ChatResponse;
-import org.springframework.ai.chat.prompt.Prompt;
-import org.springframework.ai.content.Media;
-import org.springframework.ai.openai.OpenAiChatModel;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.CommandLineRunner;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
-import org.springframework.context.annotation.Bean;
-import org.springframework.core.io.FileSystemResource;
-import org.springframework.core.io.Resource;
-import org.springframework.util.MimeTypeUtils;
 
-import com.exammarker.helloworld.dto.QuestionEvaluationDto;
 import com.exammarker.helloworld.service.ExamEvaluationService;
-import com.fasterxml.jackson.databind.ObjectMapper;
 
 @SpringBootApplication
 public class HelloworldApplication {

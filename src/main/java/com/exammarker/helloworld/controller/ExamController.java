@@ -7,17 +7,14 @@ import org.slf4j.LoggerFactory;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
 import com.exammarker.helloworld.dto.QuestionEvaluationDto;
-import com.exammarker.helloworld.dto.align.AlignRequest;
 import com.exammarker.helloworld.dto.rubric.RubricDto;
 import com.exammarker.helloworld.dto.solution.SolutionDto;
-import com.exammarker.helloworld.dto.studentpaper.StudentPaperDto;
 import com.exammarker.helloworld.service.ExamEvaluationService;
 import com.exammarker.helloworld.service.PdfAssemblyService;
 
@@ -39,22 +36,10 @@ public class ExamController {
         this.evaluationService = service;
         this.pdfAssemblyservice = pdfAssemblyservice;
     }
-
-    @PostMapping("/debug/align")
-    public StudentPaperDto debugAlign(@RequestBody AlignRequest request) {
-    	log.info("endpoint: debug/align...");
-
-        return evaluationService.alignStudentPaperToQuestions(        		
-        		request.studentPaper(),
-                request.solution()
-        );
-    }
-    
-    
     
     
     @PostMapping(value = "/transcribestudentpaper", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public StudentPaperDto transcribeStudentpaper(
+    public void transcribeStudentpaper(
 
     		@RequestPart(value = "studentpaper", required = true) List<MultipartFile> studentpaperImages
 
@@ -62,7 +47,7 @@ public class ExamController {
 
     	log.info("endpoint: transcribestudentpaper...");
  
-    	return evaluationService.transcribeStudentPaper(studentpaperImages);
+    	evaluationService.transcribeStudentPaper(studentpaperImages);
 
     }
     
@@ -96,9 +81,9 @@ public class ExamController {
     
     @PostMapping(value = "/evaluate", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public QuestionEvaluationDto evaluate(
-            @RequestPart("paperImages") List<MultipartFile> paperImages,
-            @RequestPart("rubricImages") List<MultipartFile> rubricImages,
-            @RequestPart("solutionImages") List<MultipartFile> solutionImages
+            @RequestPart(value = "paperImages", required = true) List<MultipartFile> paperImages,
+            @RequestPart(value = "rubricImages", required = true) List<MultipartFile> rubricImages,
+            @RequestPart(value = "solutionImages", required = true) List<MultipartFile> solutionImages
     ) throws Exception {
     	
     	log.info("endpoint: evaluat...");
@@ -108,5 +93,6 @@ public class ExamController {
     	
     	
     	return evaluationService.evaluateQuestion(paperImages, rubricImages, solutionImages);
-   }
+   }    
+    
 }

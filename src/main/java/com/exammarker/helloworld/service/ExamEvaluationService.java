@@ -6,10 +6,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.messages.SystemMessage;
 import org.springframework.ai.chat.messages.UserMessage;
+import org.springframework.ai.chat.model.ChatModel; // Swapped to generic interface
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.content.Media;
-import org.springframework.ai.openai.OpenAiChatModel;
+import org.springframework.ai.converter.BeanOutputConverter;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Service;
@@ -19,6 +20,7 @@ import org.springframework.web.multipart.MultipartFile;
 import com.exammarker.helloworld.dto.QuestionEvaluationDto;
 import com.exammarker.helloworld.dto.rubric.RubricDto;
 import com.exammarker.helloworld.dto.solution.SolutionDto;
+import com.exammarker.helloworld.dto.studentpaper.QuestionAnswerDto;
 import com.exammarker.helloworld.dto.studentpaper.StudentPaperDto;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -26,22 +28,21 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 @Service
 public class ExamEvaluationService {
 
-	private static final Logger log = LoggerFactory.getLogger(PdfAssemblyService.class);
+	private static final Logger log = LoggerFactory.getLogger(ExamEvaluationService.class); // Fixed target logger class
 
-	private final OpenAiChatModel chatModel;
+	private final ChatModel chatModel; // Swapped to interface type
 
 	private final PdfAssemblyService pdfAssemblyService;
 
 	private final ObjectMapper objectMapper = new ObjectMapper();
 
-	public ExamEvaluationService(OpenAiChatModel chatModel, PdfAssemblyService pdfAssemblyService) {
+	public ExamEvaluationService(ChatModel chatModel, PdfAssemblyService pdfAssemblyService) { // Fixed injection constructor
 		this.chatModel = chatModel;
 		this.pdfAssemblyService = pdfAssemblyService;
 	}
 
 	public StudentPaperDto evaluateOneQuestionFromExam(String questionId, RubricDto rubricDto, SolutionDto solutionDto, 
 			StudentPaperDto studentPaperDto) {
-		
 		
 		return null;
 	}
@@ -168,9 +169,7 @@ public class ExamEvaluationService {
 		byte[] solutionPdfBytes = pdfAssemblyService.imagesToPdf(solutionImages);
 
 		Resource studentWorkPdf = new ByteArrayResource(paperPdfBytes);
-
 		Resource solutionsPdf = new ByteArrayResource(solutionPdfBytes);
-
 		Resource rubricPdf = new ByteArrayResource(rubricPdfBytes);
 
 		SystemMessage systemMessage = new SystemMessage(
@@ -202,7 +201,7 @@ public class ExamEvaluationService {
 						JSON schema:
 						{
 						  "studentName": string | null,
-						  "questionId": "string"
+						  "questionId": "string",
 						  "questionText": string,
 						  "maxMarks": integer,
 						  "marksAwarded": integer,
@@ -302,9 +301,12 @@ public class ExamEvaluationService {
 		log.info("====== Response from ai model: ========");
 		log.info(raw);
 
-		objectMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+		//objectMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+		//QuestionEvaluationDto dto = objectMapper.readValue(raw, QuestionEvaluationDto.class);
 
-		QuestionEvaluationDto dto = objectMapper.readValue(raw, QuestionEvaluationDto.class);
+		BeanOutputConverter<QuestionEvaluationDto> converter = new BeanOutputConverter<>(QuestionEvaluationDto.class);
+		// 3. Let the converter safely translate the output natively
+	    QuestionEvaluationDto dto = converter.convert(raw);
 
 		validate(dto);
 
@@ -319,7 +321,6 @@ public class ExamEvaluationService {
 		Resource rubricPdf = new ByteArrayResource(rubricPdfBytes);
 
 		return transcribeRubric(rubricPdf);
-
 	}
 
 	public RubricDto transcribeRubric(Resource rubricPdf) throws Exception {
@@ -438,8 +439,6 @@ public class ExamEvaluationService {
 
 		objectMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
-//		objectMapper.setPropertyNamingStrategy(PropertyNamingStrategies.SNAKE_CASE);
-
 		RubricDto dto = objectMapper.readValue(raw, RubricDto.class);
 
 		return dto;
@@ -447,21 +446,14 @@ public class ExamEvaluationService {
 
 	///
 	/// 
-	/// 
-	/// 
-	///
-	
 	public SolutionDto transcribeSolutions(List<MultipartFile> solutionsImages) throws Exception {
 
 		byte[] solutionPdfBytes = pdfAssemblyService.imagesToPdf(solutionsImages);
 		Resource solutionPdf = new ByteArrayResource(solutionPdfBytes);
 
 		return transcribeSolutions(solutionPdf);
-
 	}
 
-	
-	
 	public SolutionDto transcribeSolutions(Resource solutionPdf) throws Exception {
 
 	SystemMessage systemMessage = new SystemMessage("""
@@ -521,7 +513,6 @@ public class ExamEvaluationService {
 	Prompt prompt = new Prompt(List.of(systemMessage, solutionMessage));
 
 	ChatResponse response;
-
 	try {
 		response = chatModel.call(prompt);
 	} catch (Exception e) {
@@ -533,12 +524,7 @@ public class ExamEvaluationService {
 	log.info("====== Response from ai model for solution transcription: ========");
 	log.info(raw);
 
-	objectMapper.configure(
-			DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES,
-			false);
-
-//	objectMapper.setPropertyNamingStrategy(
-//			PropertyNamingStrategies.SNAKE_CASE);
+	objectMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
 	SolutionDto dto = objectMapper.readValue(raw, SolutionDto.class);
 
@@ -546,22 +532,15 @@ public class ExamEvaluationService {
 }
 	///
 	/// 
-	/// 
-	/// 
-	
 	public StudentPaperDto transcribeStudentPaper(List<MultipartFile> studentpaperImages) throws Exception {
 
 		byte[] studentpaperPdfBytes = pdfAssemblyService.imagesToPdf(studentpaperImages);
 		Resource studentpaperPdf = new ByteArrayResource(studentpaperPdfBytes);
 
 		return transcribeStudentPaper(studentpaperPdf);
-
 	}
 
-	
-	
 	public StudentPaperDto transcribeStudentPaper(Resource studentPaperPdf) throws Exception {
-
 
 		SystemMessage systemMessage = new SystemMessage("""
 
@@ -644,6 +623,9 @@ public class ExamEvaluationService {
 				}
 
 				""");		
+		
+		
+		
 		UserMessage studentMessage = UserMessage.builder()
 				.text("This is a student's answer paper. Handwritten parts are the answers and printed parts are questions.")
 				.media(new Media(
@@ -654,7 +636,6 @@ public class ExamEvaluationService {
 		Prompt prompt = new Prompt(List.of(systemMessage, studentMessage));
 
 		ChatResponse response;
-
 		try {
 			response = chatModel.call(prompt);
 		} catch (Exception e) {
