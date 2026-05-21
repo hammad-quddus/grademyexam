@@ -14,7 +14,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import com.exammarker.helloworld.dto.QuestionEvaluationDto;
 import com.exammarker.helloworld.dto.rubric.RubricDto;
-import com.exammarker.helloworld.dto.solution.SolutionDto;
+import com.exammarker.helloworld.dto.solution.TranscribedSolutionsDto;
 import com.exammarker.helloworld.dto.studentpaper.TranscribedExamDto;
 import com.exammarker.helloworld.service.ExamEvaluationService;
 import com.exammarker.helloworld.service.PdfAssemblyService;
@@ -54,7 +54,7 @@ public class ExamController {
     
     
     @PostMapping(value = "/transcribesolution", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public SolutionDto transcribeSolution(
+    public TranscribedSolutionsDto transcribeSolution(
 
     		@RequestPart(value = "solution", required = true) List<MultipartFile> solutionImages
 
@@ -62,7 +62,7 @@ public class ExamController {
 
     	log.info("endpoint: transcribesolution...");
  
-    	return evaluationService.transcribeSolutions(solutionImages);
+    	return evaluationService.transcribeOfficialSolutions(solutionImages);
 
     }
    

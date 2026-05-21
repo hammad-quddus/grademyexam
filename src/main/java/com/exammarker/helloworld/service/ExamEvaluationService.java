@@ -19,10 +19,10 @@ import org.springframework.web.multipart.MultipartFile;
 
 import com.exammarker.helloworld.dto.QuestionEvaluationDto;
 import com.exammarker.helloworld.dto.rubric.RubricDto;
-import com.exammarker.helloworld.dto.solution.SolutionDto;
+import com.exammarker.helloworld.dto.solution.TranscribedSolutionsDto;
+import com.exammarker.helloworld.dto.studentpaper.TranscribedExamDto;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.exammarker.helloworld.dto.studentpaper.*;
 
 
 @Service
@@ -329,90 +329,68 @@ public class ExamEvaluationService {
 
 	///
 	/// 
-	public SolutionDto transcribeSolutions(List<MultipartFile> solutionsImages) throws Exception {
+	/// 
+	/// 
+	/// 
+	/// 
+	
+	/**
+	 * Phase 1b: Transcribes and structures out-of-order official exam solutions and marking criteria.
+	 */
+	public TranscribedSolutionsDto transcribeOfficialSolutions(List<MultipartFile> solutionImages) throws Exception {
+		byte[] solutionPdfBytes = pdfAssemblyService.imagesToPdf(solutionImages);
+		Resource solutionsPdf = new ByteArrayResource(solutionPdfBytes);
 
-		byte[] solutionPdfBytes = pdfAssemblyService.imagesToPdf(solutionsImages);
-		Resource solutionPdf = new ByteArrayResource(solutionPdfBytes);
+		SystemMessage systemMessage = new SystemMessage(
+				"""
+				You are an advanced academic OCR coordinator.
+				
+				Task:
+				Analyze the attached Official Exam Solutions PDF. Extract, segment, and structure all question rubrics 
+				and answer guidelines.
+				
+				Rules:
+				1. Reconstruct logical solutions and sub-questions (e.g., Q3a, Q3b, Q1a, Q1b) that may span across pages.
+				2. The pages in the attached PDF may be completely out of order. Use numbering, subject headings, and conceptual flow to piece them together sequentially.
+				3. For each structured question block, extract:
+				   - questionId: Standard identifier (e.g., Q1a, Q3b, Q4a)
+				   - questionText: Full textual prompt of the question.
+				   - maxMarks: Total marks assigned (e.g. 10, 4), parsed from brackets or descriptors.
+				   - officialSolutionKeyPoints: Verbatim expected facts, events, historical figures, verses, or points.
+				   - markingGuidelines: The guidance, instructions, or grading criteria given to examiners for this question.
+				4. Return ONLY valid JSON matching the schema below. Do not wrap in markdown or backticks.
+				
+				JSON schema:
+				{
+				  "subject": "string or null",
+				  "examCode": "string or null",
+				  "questions": [
+				    {
+				      "questionId": "string (e.g., Q1a, Q3b)",
+				      "questionText": "string",
+				      "maxMarks": integer,
+				      "officialSolutionKeyPoints": [ "string" ],
+				      "markingGuidelines": "string"
+				    }
+				  ]
+				}
+				""");
 
-		return transcribeSolutions(solutionPdf);
+		UserMessage solutionsMessage = UserMessage.builder()
+				.text("Please analyze and reconstruct the structured official exam solutions.")
+				.media(new Media(MimeTypeUtils.parseMimeType("application/pdf"), solutionsPdf))
+				.build();
+
+		Prompt prompt = new Prompt(List.of(systemMessage, solutionsMessage));
+		ChatResponse response = chatModel.call(prompt);
+		String rawJson = response.getResult().getOutput().getText();
+
+		BeanOutputConverter<TranscribedSolutionsDto> converter = new BeanOutputConverter<>(TranscribedSolutionsDto.class);
+		return converter.convert(rawJson);
 	}
-
-	public SolutionDto transcribeSolutions(Resource solutionPdf) throws Exception {
-
-	SystemMessage systemMessage = new SystemMessage("""
-			You are an exam solution transcription engine.
-
-			TASK:
-			Extract and normalize the official exam solutions from the attached PDF into the provided JSON schema.
-
-			STRICT RULES:
-			- Only extract information explicitly present in the solutions document.
-			- Do NOT invent additional answers, explanations, or grading criteria.
-			- Do NOT evaluate quality or assign marks.
-			- Preserve original meaning and expected answer content as closely as possible.
-
-			If information is unclear, missing, or unreadable:
-			- set the field to null
-
-			Ignore:
-			- formatting issues
-			- layout artifacts
-			- OCR noise
-			- repeated or misaligned text
-
-			The goal is structural transcription, not reasoning.
-
-			OUTPUT:
-			Must strictly follow JSON schema.
-			No extra fields.
-			No commentary.
-
-			JSON Schema:
-
-			{
-			  "subject": "string",
-			
-			  "questions": [
-			    {
-			      "questionId": "string",
-			      "questionText": "string",
-			      "modelAnswer": "string",
-			      "maxMarks":int,
-			      "keyPoints": ["string"],
-			      "acceptableAlternativePoints": ["string"],
-			      "evidenceReferences": ["string"]
-			    }
-			  ]
-			}
-			""");
-
-	UserMessage solutionMessage = UserMessage.builder()
-			.text("These are the official exam solutions.")
-			.media(new Media(
-					MimeTypeUtils.parseMimeType("application/pdf"),
-					solutionPdf))
-			.build();
-
-	Prompt prompt = new Prompt(List.of(systemMessage, solutionMessage));
-
-	ChatResponse response;
-	try {
-		response = chatModel.call(prompt);
-	} catch (Exception e) {
-		throw new RuntimeException("AI solution parsing failed", e);
-	}
-
-	var raw = response.getResult().getOutput().getText();
-
-	log.info("====== Response from ai model for solution transcription: ========");
-	log.info(raw);
-
-	objectMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
-
-	SolutionDto dto = objectMapper.readValue(raw, SolutionDto.class);
-
-	return dto;
-}
+	
+	
+	
 
 	/**
 	 * Phase 1: Transcribes and segments handwritten student exam pages into structured question-answer pairs.
@@ -464,7 +442,7 @@ public class ExamEvaluationService {
 		ChatResponse response = chatModel.call(prompt);
 		String rawJson = response.getResult().getOutput().getText();
 
-		log.info("====== Response from ai model for solution transcription: ========");
+		log.info("====== Response from ai model for studentpaper transcription: ========");
 		log.info(rawJson);
 
 		BeanOutputConverter<TranscribedExamDto> converter = new BeanOutputConverter<>(TranscribedExamDto.class);
