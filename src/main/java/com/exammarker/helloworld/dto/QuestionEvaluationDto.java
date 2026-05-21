@@ -25,9 +25,10 @@ public record QuestionEvaluationDto(
     List<String> strengths,
     List<String> improvements,
     List<String> factualErrors,
-    List<String> teacherComments,
     List<String> coverageGaps,
-	
+
+    String teacherComments,
+    
     RubricReferenceDto rubricReference,
 
     ConfidenceDto confidence,

@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
+import com.exammarker.helloworld.dto.ExamEvaluationDto;
 import com.exammarker.helloworld.dto.QuestionEvaluationDto;
 import com.exammarker.helloworld.dto.rubric.RubricDto;
 import com.exammarker.helloworld.dto.solution.TranscribedSolutionsDto;
@@ -95,5 +96,22 @@ public class ExamController {
     	
     	return evaluationService.evaluateQuestion(paperImages, rubricImages, solutionImages);
    }    
+    
+    
+    @PostMapping(value = "/evaluatefullexam", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ExamEvaluationDto evaluateFullExam(
+            @RequestPart(value = "paperImages", required = true) List<MultipartFile> paperImages,
+            @RequestPart(value = "rubricImages", required = true) List<MultipartFile> rubricImages,
+            @RequestPart(value = "solutionImages", required = true) List<MultipartFile> solutionImages
+    ) throws Exception {
+    	
+    	log.info("endpoint: evaluatefullexam...");
+    	log.info("total paperImages: " + paperImages.size());
+    	log.info("total rubricImages: " + rubricImages.size());
+    	log.info("total solutionImages: " + solutionImages.size());
+    	
+    	
+    	return evaluationService.evaluateEntireExamPipeline(paperImages, rubricImages, solutionImages);
+   }        
     
 }

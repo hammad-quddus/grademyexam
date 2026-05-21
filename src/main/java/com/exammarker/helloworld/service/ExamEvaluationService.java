@@ -1,5 +1,6 @@
 package com.exammarker.helloworld.service;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import org.slf4j.Logger;
@@ -17,10 +18,17 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.MimeTypeUtils;
 import org.springframework.web.multipart.MultipartFile;
 
+import com.exammarker.helloworld.dto.BandDto;
+import com.exammarker.helloworld.dto.ConfidenceDto;
+import com.exammarker.helloworld.dto.EvaluationDto;
+import com.exammarker.helloworld.dto.ExamEvaluationDto;
 import com.exammarker.helloworld.dto.QuestionEvaluationDto;
 import com.exammarker.helloworld.dto.rubric.RubricDto;
+import com.exammarker.helloworld.dto.rubric.RubricReferenceDto;
+import com.exammarker.helloworld.dto.solution.TranscribedSolutionQuestionDto;
 import com.exammarker.helloworld.dto.solution.TranscribedSolutionsDto;
 import com.exammarker.helloworld.dto.studentpaper.TranscribedExamDto;
+import com.exammarker.helloworld.dto.studentpaper.TranscribedQuestionDto;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -130,9 +138,7 @@ public class ExamEvaluationService {
 						    string
 						  ],
 
-						  "teacherComments": [
-						    string
-						  ],
+						  "teacherComments": string,
 
 						  "rubricReference": {
 						    "band": {
@@ -464,4 +470,244 @@ public class ExamEvaluationService {
 			throw new IllegalStateException("Missing rubric reference");
 		}
 	}
+	
+	
+	//////////////////////////////
+	/// 
+	/// 
+	/// 
+	/**
+	 * Phase 2: Evaluates a single pre-transcribed digital student answer against its matching official solution.
+	 */
+	public QuestionEvaluationDto evaluateSingleQuestion(
+			TranscribedQuestionDto transcribedQuestion, 
+			TranscribedSolutionQuestionDto matchedSolution,
+			Resource rubricPdf) {
+
+		SystemMessage systemMessage = new SystemMessage(
+				"""
+				You are an experienced academic evaluator.
+				
+				You will receive a clean digital transcription of a single question and student answer. 
+				You are also supplied with the specific official solution guidelines for this exact question, along with the global grading rubrics.
+				
+				Tasks:
+				1. Compare the transcribed student answer against the official solution's expectations.
+				2. Evaluate across academic metrics: accuracy, coverage, use of source materials, structure, and relevance.
+				3. Highlight missing critical keypoints (coverage gaps) as defined in the official solution.
+				4. Assign marks fairly but strictly according to the rubric's mark allocations and the question's max marks.
+				5. Provide supportive teacher feedback and document any factual errors.
+				6. If transcription contains "[unreadable handwriting]", flag for human review.
+				
+				Rules:
+				- Grade strictly on evidence found in the transcribed text. Do not hallucinate or invent answers.
+				- Return ONLY valid JSON matching the schema below.
+				
+				JSON schema:
+				{
+				  "questionId": "string",
+				  "questionText": "string",
+				  "maxMarks": integer,
+				  "marksAwarded": integer,
+				  "studentAnswerTranscription": "string",
+				  "officialSolutionKeyPoints": [ "string" ],
+				  "coverageGaps": [ "string" ],
+				  "evaluation": {
+				    "accuracy": [ "string" ],
+				    "coverage": [ "string" ],
+				    "useOfResources": [ "string" ],
+				    "structure": [ "string" ],
+				    "relevance": [ "string" ]
+				  },
+				  "evaluationSummary": "string",
+				  "strengths": [ "string" ],
+				  "improvements": [ "string" ],
+				  "factualErrors": [ "string" ],
+				  "teacherComments": "string",
+				  "rubricReference": {
+				    "band": {
+				      "min": integer,
+				      "max": integer
+				    },
+				    "descriptor": "string"
+				  },
+				  "confidence": {
+				    "transcriptionConfidence": number,
+				    "gradingConfidence": number
+				  },
+				  "requiresHumanReview": boolean
+				}
+				""");
+
+		String studentAnswerChunk = String.format(
+				"--- STUDENT SUBMISSION ---\nQuestion ID: %s\nQuestion Text: %s\nTranscribed Answer: %s\n",
+				transcribedQuestion.questionId(),
+				transcribedQuestion.questionText(),
+				transcribedQuestion.answerText()
+		);
+
+		String solutionsText = matchedSolution != null 
+				? String.format(
+						"--- OFFICIAL EXAM SOLUTION ---\nQuestion ID: %s\nMax Marks: %d\nExpected Key Points:\n- %s\nMarking Guidelines: %s\n",
+						matchedSolution.questionId(),
+						matchedSolution.maxMarks(),
+						String.join("\n- ", matchedSolution.officialSolutionKeyPoints()),
+						matchedSolution.markingGuidelines()
+				  )
+				: "--- OFFICIAL EXAM SOLUTION ---\nNo matching official solution segment was successfully transcribed for this question ID.";
+
+		UserMessage studentMessage = UserMessage.builder().text(studentAnswerChunk).build();
+		UserMessage solutionsMessage = UserMessage.builder().text(solutionsText).build();
+
+		UserMessage rubricMessage = UserMessage.builder()
+				.text("This is the global marking criteria / grade boundary rubrics.")
+				.media(new Media(MimeTypeUtils.parseMimeType("application/pdf"), rubricPdf))
+				.build();
+
+		Prompt prompt = new Prompt(List.of(systemMessage, rubricMessage, solutionsMessage, studentMessage));
+		ChatResponse response = chatModel.call(prompt);
+		String rawJson = response.getResult().getOutput().getText();
+
+		BeanOutputConverter<QuestionEvaluationDto> converter = new BeanOutputConverter<>(QuestionEvaluationDto.class);
+		return converter.convert(rawJson);
+	}
+	
+	
+	
+	
+	//////////////
+	/// 
+	/**
+	 * Orchestrates the full grading pipeline for multi-page papers.
+	 * @param paperImages    Handwritten student paper images.
+	 * @param rubricImages   Images of the marking criteria / rubric.
+	 * @param solutionImages Images of the model answers / answer keys (possibly out of order).
+	 * @return Consolidated exam evaluation report.
+	 */
+	public ExamEvaluationDto evaluateEntireExamPipeline(
+			List<MultipartFile> paperImages, 
+			List<MultipartFile> rubricImages,
+			List<MultipartFile> solutionImages) throws Exception {
+
+		log.info("Starting Phase 1a: Transcribing and Segmenting Student Paper ({} pages)...", paperImages.size());
+		TranscribedExamDto transcription = transcribeAndSegmentPaper(paperImages);
+
+		log.info("Starting Phase 1b: Transcribing and Structuring Official Solutions ({} pages)...", solutionImages.size());
+		TranscribedSolutionsDto officialSolutions = transcribeOfficialSolutions(solutionImages);
+
+		log.info("Transcription completed.\n" +
+				"Student: {}, ID: {}, Subject: {}, Class: {}, Date: {}\n" +
+				"Student Questions Found: {}\n" +
+				"Official Solution Keys Mapped: {}", 
+				transcription.studentName(), 
+				transcription.studentId(),
+				transcription.subject(), 
+				transcription.classAndSection(),
+				transcription.date(),
+				transcription.questions().size(),
+				officialSolutions.questions().size());
+
+		// Compile rubric into digital resources (rubrics are short and global, so we can keep as PDF)
+		byte[] rubricPdfBytes = pdfAssemblyService.imagesToPdf(rubricImages);
+		Resource rubricPdf = new ByteArrayResource(rubricPdfBytes);
+
+		List<QuestionEvaluationDto> evaluatedQuestions = new ArrayList<>();
+		int totalMaxMarks = 0;
+		int totalMarksAwarded = 0;
+
+		log.info("Starting Phase 2: Iterative evaluation loop matching student answers to structured solutions...");
+		for (TranscribedQuestionDto transcribedQuestion : transcription.questions()) {
+			try {
+				log.info("Evaluating Question ID: {}", transcribedQuestion.questionId());
+				
+				// Dynamically resolve and match the correct structured official solution
+				TranscribedSolutionQuestionDto matchedSolution = officialSolutions.questions().stream()
+						.filter(sol -> sol.questionId().equalsIgnoreCase(transcribedQuestion.questionId()))
+						.findFirst()
+						.orElse(null);
+				
+				// if no match by questionId try questionText
+				if (matchedSolution == null) {
+					matchedSolution = officialSolutions.questions().stream()
+							.filter(sol -> sol.questionText().equalsIgnoreCase(transcribedQuestion.questionText()))
+							.findFirst()
+							.orElse(null);				}
+				
+				
+				if (matchedSolution == null) {
+					log.warn("No official solution found matching questionId: {}. Grading will proceed with caution.", 
+							transcribedQuestion.questionId());
+				}
+
+				QuestionEvaluationDto evalDto = evaluateSingleQuestion(
+						transcribedQuestion, 
+						matchedSolution,
+						rubricPdf
+				);
+				evaluatedQuestions.add(evalDto);
+				
+				if (evalDto.maxMarks() != null) {
+					totalMaxMarks += evalDto.maxMarks();
+				}
+				if (evalDto.marksAwarded() != null) {
+					totalMarksAwarded += evalDto.marksAwarded();
+				}
+			} catch (Exception e) {
+				log.error("Failed to evaluate question ID: {}", transcribedQuestion.questionId(), e);
+				// Fallback dynamically so one difficult question doesn't break the entire pipeline execution
+				QuestionEvaluationDto fallback = createFallbackEvaluation(transcription.studentName(), transcribedQuestion, e.getMessage());
+				evaluatedQuestions.add(fallback);
+				if (fallback.maxMarks() != null) {
+					totalMaxMarks += fallback.maxMarks();
+				}
+				if (fallback.marksAwarded() != null) {
+					totalMarksAwarded += fallback.marksAwarded();
+				}
+			}
+		}
+
+		// Assemble the final consolidated response using modern constructor matching
+		ExamEvaluationDto finalReport = new ExamEvaluationDto(
+				transcription.studentName(),
+				transcription.studentId(),
+				transcription.subject(),
+				transcription.classAndSection(),
+				transcription.date(),
+				totalMaxMarks,
+				totalMarksAwarded,
+				evaluatedQuestions
+		);
+
+		log.info("Pipeline completed successfully for student: {} (Score: {}/{})", 
+				finalReport.studentName(), totalMarksAwarded, totalMaxMarks);
+		return finalReport;
+	}
+	
+
+	
+	
+	/**
+	 * Creates a structured fallback object in case evaluation of a single question fails.
+	 */
+	private QuestionEvaluationDto createFallbackEvaluation(String studentName, TranscribedQuestionDto transcribedQuestion, String errorMsg) {
+		return new QuestionEvaluationDto(
+				studentName,
+				transcribedQuestion.questionId(),
+				transcribedQuestion.questionText(),
+				10, // Default fallback max score
+				0,  // Standard default scored marks
+				transcribedQuestion.answerText(),
+				List.of(),
+				new EvaluationDto(List.of(), List.of(), List.of(), List.of(), List.of()),
+				"Evaluation failed due to pipeline error.",
+				List.of(), // strengths
+				List.of(), // improvements
+				List.of(), // factualErrors
+				List.of(), // coverageGaps
+				"System error occurred during automated grading: " + errorMsg, // teacherComments
+				new RubricReferenceDto(new BandDto(0, 0), "Fallback"),
+				new ConfidenceDto(0.0, 0.0),
+				true
+		);
+	}	
 }

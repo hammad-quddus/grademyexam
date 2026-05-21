@@ -1,5 +1,5 @@
 package com.exammarker.helloworld.dto.studentpaper;
-record TranscribedQuestionDto(
+public record TranscribedQuestionDto(
 		String questionId,
 		String questionText,
 		String answerText,
