@@ -20,10 +20,10 @@ import org.springframework.web.multipart.MultipartFile;
 import com.exammarker.helloworld.dto.QuestionEvaluationDto;
 import com.exammarker.helloworld.dto.rubric.RubricDto;
 import com.exammarker.helloworld.dto.solution.SolutionDto;
-import com.exammarker.helloworld.dto.studentpaper.QuestionAnswerDto;
-import com.exammarker.helloworld.dto.studentpaper.StudentPaperDto;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.exammarker.helloworld.dto.studentpaper.*;
+
 
 @Service
 public class ExamEvaluationService {
@@ -41,124 +41,7 @@ public class ExamEvaluationService {
 		this.pdfAssemblyService = pdfAssemblyService;
 	}
 
-	public StudentPaperDto evaluateOneQuestionFromExam(String questionId, RubricDto rubricDto, SolutionDto solutionDto, 
-			StudentPaperDto studentPaperDto) {
-		
-		return null;
-	}
-	
-//////////////
-/// 
-	public StudentPaperDto alignStudentPaperToQuestions(
-	        StudentPaperDto studentPaperDto,
-	        SolutionDto solutionDto
-	) {
 
-	    try {
-
-	        // 1. Serialize inputs to JSON (THIS is what the LLM consumes)
-	        String studentJson = objectMapper.writeValueAsString(studentPaperDto);
-	        String solutionJson = objectMapper.writeValueAsString(solutionDto);
-
-	        // 2. System prompt (alignment engine)
-	        SystemMessage systemMessage = new SystemMessage("""
-	        		You are an exam paper alignment engine.
-
-	        		TASK:
-	        		You will receive:
-	        		1. A student's exam paper (StudentPaperDto)
-	        		2. An official solution structure (SolutionDto)
-
-	        		Your job is to ALIGN each student answer to the correct official question.
-
-	        		────────────────────────────────────
-	        		CRITICAL RULES
-	        		────────────────────────────────────
-
-	        		- Do NOT grade or evaluate answers.
-	        		- Do NOT modify student answerText.
-	        		- Do NOT invent questionIds.
-	        		- ALL questionIds MUST come from SolutionDto.questionMappings.
-	        		- ALL questionText MUST come from SolutionDto.
-
-	        		────────────────────────────────────
-	        		ALIGNMENT LOGIC (priority order)
-	        		────────────────────────────────────
-
-	        		Match each student answer to the correct question using:
-
-	        		1. Similarity of student answer to modelAnswer / keyPoints
-	        		2. Presence of partial questionText in student data (if any)
-	        		3. rawQuestionLabel (weak signal only)
-	        		4. Order of appearance in paper (fallback only)
-
-	        		────────────────────────────────────
-	        		STRICT OUTPUT RULES
-	        		────────────────────────────────────
-
-	        		For each student question:
-	        		- Assign correct questionId from SolutionDto
-	        		- Attach correct questionText from SolutionDto
-	        		- Keep answerText unchanged
-
-	        		If uncertain:
-	        		- still choose best matching question from SolutionDto
-	        		- NEVER leave questionId null
-
-	        		────────────────────────────────────
-	        		OUTPUT FORMAT
-	        		────────────────────────────────────
-
-	        		Return a valid StudentPaperDto JSON:
-	        		- subject unchanged
-	        		- studentId unchanged
-	        		- questions fully aligned:
-	        		    - questionId populated
-	        		    - questionText populated from SolutionDto
-	        		    - answerText unchanged
-
-	        		No commentary.
-	        		No markdown.
-	        		""");	        
-	        
-	        // 3. Student input
-	        UserMessage studentMessage = UserMessage.builder()
-	                .text("""
-	                    Student Paper (transcribed JSON):
-	                    """ + studentJson)
-	                .build();
-
-	        // 4. Solution input (GROUND TRUTH)
-	        UserMessage solutionMessage = UserMessage.builder()
-	                .text("""
-	                    Official Solution Structure (JSON):
-	                    """ + solutionJson)
-	                .build();
-
-	        // 5. Build prompt
-	        Prompt prompt = new Prompt(List.of(
-	                systemMessage,
-	                solutionMessage,
-	                studentMessage
-	        ));
-
-	        // 6. Call model
-	        ChatResponse response = chatModel.call(prompt);
-
-	        String raw = response.getResult().getOutput().getText();
-
-	        log.info("=== ALIGNMENT RESPONSE ===");
-	        log.info(raw);
-
-	        // 7. Parse aligned output
-	        StudentPaperDto aligned = objectMapper.readValue(raw, StudentPaperDto.class);
-
-	        return aligned;
-
-	    } catch (Exception e) {
-	        throw new RuntimeException("Failed to align student paper to solution structure", e);
-	    }
-	}	
 	
 	
 	public QuestionEvaluationDto evaluateQuestion(List<MultipartFile> paperImages, List<MultipartFile> rubricImages,
@@ -530,129 +413,65 @@ public class ExamEvaluationService {
 
 	return dto;
 }
-	///
-	/// 
-	public StudentPaperDto transcribeStudentPaper(List<MultipartFile> studentpaperImages) throws Exception {
 
-		byte[] studentpaperPdfBytes = pdfAssemblyService.imagesToPdf(studentpaperImages);
-		Resource studentpaperPdf = new ByteArrayResource(studentpaperPdfBytes);
+	/**
+	 * Phase 1: Transcribes and segments handwritten student exam pages into structured question-answer pairs.
+	 */
+	public TranscribedExamDto transcribeAndSegmentPaper(List<MultipartFile> paperImages) throws Exception {
+		byte[] paperPdfBytes = pdfAssemblyService.imagesToPdf(paperImages);
+		Resource studentWorkPdf = new ByteArrayResource(paperPdfBytes);
 
-		return transcribeStudentPaper(studentpaperPdf);
-	}
-
-	public StudentPaperDto transcribeStudentPaper(Resource studentPaperPdf) throws Exception {
-
-		SystemMessage systemMessage = new SystemMessage("""
-
-				YOU ARE A STUDENT EXAM PAPER TRANSCRIPTION ENGINE.
-
-				────────────────────────────────────────
-				TASK
-				────────────────────────────────────────
-
-				Extract and structure a student's answer paper from a PDF into JSON.
-
-
-				────────────────────────────────────────
-				CORE STRUCTURE RULE
-				────────────────────────────────────────
-
-				- Printed text = question prompts / headers
-				- Handwritten text below printed text = student answers
-				- Preserve strict top-to-bottom order
-
-				Each answer belongs to the nearest preceding printed question.
-
-				────────────────────────────────────────
-				SECTIONING RULE
-				────────────────────────────────────────
-
-				- rawQuestionLabel = main question number (e.g. "1.", "2.")
-				- subQuestionLabel = subparts (e.g. "(a)", "(b)")
-
-				- A rawQuestionLabel starts a new section
-				- All following content belongs to that section until a new rawQuestionLabel appears
-
-				- subQuestionLabel always belongs to the current rawQuestionLabel section
-
-				────────────────────────────────────────
-				SUBQUESTION RULE
-				────────────────────────────────────────
-
-				- subQuestionLabel NEVER creates a new section
-
-				────────────────────────────────────────
-				QUESTION TEXT RESOLUTION RULE (KEYED LOOKUP)
-				────────────────────────────────────────
+		SystemMessage systemMessage = new SystemMessage(
+				"""
+				You are an advanced educational AI assistant specialized in document processing and OCR transcription.
 				
-				- Use (rawQuestionLabel + subQuestionLabel) as a lookup key to determine questionText from printed sections (Questions).
-
-  												
-				────────────────────────────────────────
-				GROUPING RULE
-				────────────────────────────────────────
-
-				- Maintain document order strictly
-				- Handwritten content may span multiple blocks
-
-								
-				────────────────────────────────────────
-				OUTPUT RULES
-				────────────────────────────────────────
-
-				Return ONLY valid JSON. No markdown. No explanation.
-
-				────────────────────────────────────────
-				OUTPUT SCHEMA
-				────────────────────────────────────────
-
+				Task:
+				Analyze the attached student paper PDF. Identify individual handwritten answers, transcribe them exactly, 
+				and structure them logically into question-answer blocks.
+				
+				Rules:
+				1. Reconstruct logical answers that span across page boundaries. 
+				2. Pages might be out of order; match by narrative and conceptual continuity.
+				3. Transcribe verbatim. If handwriting is illegible, write "[unreadable handwriting]".
+				4. IGNORE CROSSED-OUT TEXT: If a student has struck through, scribbled over, crossed out, or clearly deleted any text, words, or entire paragraphs, do NOT transcribe them. Skip crossed-out content entirely from the final transcription so the evaluator does not process retracted thoughts.
+				5. Attempt to capture metadata like Student Name, Student ID, Subject, Class/Section, and Date if present.
+				6. Return ONLY valid JSON matching the schema below. Do not wrap in markdown or backticks.
+				
+				JSON schema:
 				{
-				  "subject": "string",
-				  "classAndSection": "string",
-				  "date": "string",
-				  "studentId": "string",
+				  "subject": "string or null",
+				  "classAndSection": "string or null",
+				  "date": "string or null",
+				  "studentId": "string or null",
+				  "studentName": "string or null",
 				  "questions": [
 				    {
-				      "questionId": null,
-				      "rawQuestionLabel": "string",
-				      "subQuestionLabel": "string",
-				      "questionText": "string",
-				      "answerText": "string"
+				      "questionId": "string (e.g., Q1, Q1a, Q2)",
+				      "questionText": "string (the question being answered, inferred from context if implicit)",
+				      "answerText": "string (the complete verbatim transcribed student answer)",
+				      "maxMarks": integer
 				    }
 				  ]
 				}
+				""");
 
-				""");		
-		
-		
-		
-		UserMessage studentMessage = UserMessage.builder()
-				.text("This is a student's answer paper. Handwritten parts are the answers and printed parts are questions.")
-				.media(new Media(
-						MimeTypeUtils.parseMimeType("application/pdf"),
-						studentPaperPdf))
+		UserMessage paperMessage = UserMessage.builder()
+				.text("Please transcribe this multi-page student paper and group the responses logically by question.")
+				.media(new Media(MimeTypeUtils.parseMimeType("application/pdf"), studentWorkPdf))
 				.build();
 
-		Prompt prompt = new Prompt(List.of(systemMessage, studentMessage));
+		Prompt prompt = new Prompt(List.of(systemMessage, paperMessage));
+		ChatResponse response = chatModel.call(prompt);
+		String rawJson = response.getResult().getOutput().getText();
 
-		ChatResponse response;
-		try {
-			response = chatModel.call(prompt);
-		} catch (Exception e) {
-			throw new RuntimeException("AI student paper parsing failed", e);
-		}
+		log.info("====== Response from ai model for solution transcription: ========");
+		log.info(rawJson);
 
-		var raw = response.getResult().getOutput().getText();
-
-		log.info("====== Response from AI model for student paper transcription: ========");
-		log.info(raw);
-
-		objectMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
-
-		StudentPaperDto dto = objectMapper.readValue(raw, StudentPaperDto.class);
-
-		return dto;
+		BeanOutputConverter<TranscribedExamDto> converter = new BeanOutputConverter<>(TranscribedExamDto.class);
+		return converter.convert(rawJson);
 	}
+
+
 
 	private void validate(QuestionEvaluationDto result) {
 		if (result == null) {

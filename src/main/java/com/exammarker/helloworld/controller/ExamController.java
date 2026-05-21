@@ -15,6 +15,7 @@ import org.springframework.web.multipart.MultipartFile;
 import com.exammarker.helloworld.dto.QuestionEvaluationDto;
 import com.exammarker.helloworld.dto.rubric.RubricDto;
 import com.exammarker.helloworld.dto.solution.SolutionDto;
+import com.exammarker.helloworld.dto.studentpaper.TranscribedExamDto;
 import com.exammarker.helloworld.service.ExamEvaluationService;
 import com.exammarker.helloworld.service.PdfAssemblyService;
 
@@ -39,7 +40,7 @@ public class ExamController {
     
     
     @PostMapping(value = "/transcribestudentpaper", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public void transcribeStudentpaper(
+    public TranscribedExamDto transcribeStudentpaper(
 
     		@RequestPart(value = "studentpaper", required = true) List<MultipartFile> studentpaperImages
 
@@ -47,7 +48,7 @@ public class ExamController {
 
     	log.info("endpoint: transcribestudentpaper...");
  
-    	evaluationService.transcribeStudentPaper(studentpaperImages);
+    	return evaluationService.transcribeAndSegmentPaper(studentpaperImages);
 
     }
     
