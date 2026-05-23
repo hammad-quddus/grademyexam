@@ -1,21 +1,16 @@
 package com.exammarker.helloworld;
 
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
-
-import com.exammarker.helloworld.service.ExamEvaluationService;
 
 @SpringBootApplication
 public class HelloworldApplication {
 
-	@Autowired
-	public ExamEvaluationService service;
 
 	public static void main(String[] args) {
 		SpringApplication.run(HelloworldApplication.class, args);
 	}
-
+	
 //	@Bean
 //    CommandLineRunner runner(OpenAiChatModel chatModel) {
 //        return args -> {

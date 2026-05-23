@@ -2,6 +2,7 @@ package com.exammarker.helloworld.service;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -14,6 +15,7 @@ import org.springframework.ai.content.Media;
 import org.springframework.ai.converter.BeanOutputConverter;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.core.io.Resource;
+import org.springframework.core.task.TaskExecutor;
 import org.springframework.stereotype.Service;
 import org.springframework.util.MimeTypeUtils;
 import org.springframework.web.multipart.MultipartFile;
@@ -43,15 +45,18 @@ public class ExamEvaluationService {
 	private final PdfAssemblyService pdfAssemblyService;
 
 	private final ObjectMapper objectMapper = new ObjectMapper();
+	
+	private final TaskExecutor taskExecutor;
 
-	public ExamEvaluationService(ChatModel chatModel, PdfAssemblyService pdfAssemblyService) { // Fixed injection constructor
+	public ExamEvaluationService(ChatModel chatModel, PdfAssemblyService pdfAssemblyService, TaskExecutor taskExecutor) { // Fixed injection constructor
 		this.chatModel = chatModel;
 		this.pdfAssemblyService = pdfAssemblyService;
+		this.taskExecutor = taskExecutor;
 	}
 
 
 	
-	
+	// legacy implementation
 	public QuestionEvaluationDto evaluateQuestion(List<MultipartFile> paperImages, List<MultipartFile> rubricImages,
 			List<MultipartFile> solutionImages) throws Exception {
 
@@ -65,7 +70,7 @@ public class ExamEvaluationService {
 
 		SystemMessage systemMessage = new SystemMessage(
 				"""
-						        You are an experienced 9th-grade Islamic Studies teacher.
+						        You are an experienced 9th-grade teacher.
 
 						        Read ALL attached files carefully.
 
@@ -332,13 +337,6 @@ public class ExamEvaluationService {
 
 		return dto;
 	}
-
-	///
-	/// 
-	/// 
-	/// 
-	/// 
-	/// 
 	
 	/**
 	 * Phase 1b: Transcribes and structures out-of-order official exam solutions and marking criteria.
@@ -471,11 +469,7 @@ public class ExamEvaluationService {
 		}
 	}
 	
-	
-	//////////////////////////////
-	/// 
-	/// 
-	/// 
+
 	/**
 	 * Phase 2: Evaluates a single pre-transcribed digital student answer against its matching official solution.
 	 */
@@ -573,10 +567,6 @@ public class ExamEvaluationService {
 	}
 	
 	
-	
-	
-	//////////////
-	/// 
 	/**
 	 * Orchestrates the full grading pipeline for multi-page papers.
 	 * @param paperImages    Handwritten student paper images.
@@ -590,11 +580,34 @@ public class ExamEvaluationService {
 			List<MultipartFile> solutionImages) throws Exception {
 
 		log.info("Starting Phase 1a: Transcribing and Segmenting Student Paper ({} pages)...", paperImages.size());
-		TranscribedExamDto transcription = transcribeAndSegmentPaper(paperImages);
+//		TranscribedExamDto transcription = transcribeAndSegmentPaper(paperImages);
 
+		CompletableFuture<TranscribedExamDto> transcribeAndSegmentPaperFuture =
+			    CompletableFuture.supplyAsync(() -> {
+			        try {
+						return transcribeAndSegmentPaper(paperImages);
+					} catch (Exception e) {
+						// TODO Auto-generated catch block
+						throw new RuntimeException("Failed to transcribe paper", e);
+					}
+			    }, taskExecutor);
+		
 		log.info("Starting Phase 1b: Transcribing and Structuring Official Solutions ({} pages)...", solutionImages.size());
-		TranscribedSolutionsDto officialSolutions = transcribeOfficialSolutions(solutionImages);
+//		TranscribedSolutionsDto officialSolutions = transcribeOfficialSolutions(solutionImages);
 
+		CompletableFuture<TranscribedSolutionsDto> transcribeOfficialSolutionsFuture =
+			    CompletableFuture.supplyAsync(() -> {
+			        try {
+						return transcribeOfficialSolutions(solutionImages);
+					} catch (Exception e) {
+						// TODO Auto-generated catch block
+						throw new RuntimeException("Failed to transcribe solutions", e);
+					}
+			    }, taskExecutor);
+
+		TranscribedExamDto transcription = transcribeAndSegmentPaperFuture.join();
+		TranscribedSolutionsDto officialSolutions = transcribeOfficialSolutionsFuture.join();
+		
 		log.info("Transcription completed.\n" +
 				"Student: {}, ID: {}, Subject: {}, Class: {}, Date: {}\n" +
 				"Student Questions Found: {}\n" +
