@@ -1,3 +1,54 @@
-spring.application.name=helloworld
-spring.main.web-application-type=none
-spring.ai.openai.api-key=
+#spring.application.name=examevaluator
+##spring.ai.openai.chat.options.model=gpt-4.1
+##spring.main.web-application-type=none
+#spring.servlet.multipart.max-file-size=50MB
+#spring.servlet.multipart.max-request-size=50MB
+##server.port=8080
+##server.address=0.0.0.0
+
+#
+## Enable Gemini
+#spring.ai.vertex.ai.gemini.enabled=true
+#
+## Google Cloud Project Configuration
+#spring.ai.vertex.ai.gemini.project-id=project-67143b4f-6a2b-42be-9ab
+#spring.ai.vertex.ai.gemini.location=us-central1
+#
+## Select the Multimodal Model (Pro is excellent for heavy PDFs)
+## Option A: Use the production-versioned Pro engine name
+## spring.ai.vertex.ai.gemini.chat.options.model=gemini-1.5-pro-001
+#
+## Option B: (Alternative if Pro has region caps) Try Flash:
+#spring.ai.vertex.ai.gemini.chat.options.model=gemini-2.5-pro
+
+
+
+spring.application.name=examevaluator
+
+# File Upload Configuration (Essential for multi-page exam PDFs)
+# Standard Spring Multipart Configuration
+spring.servlet.multipart.enabled=true
+spring.servlet.multipart.max-file-size=150MB
+spring.servlet.multipart.max-request-size=150MB
+
+# Max entity size (150MB in bytes: 150 * 1024 * 1024)
+server.undertow.max-http-post-size=157286400
+# ------------------------------------------
+
+# Port Configuration
+# By changing this to the environment variable fallback, Spring will dynamically 
+# accept whatever port Cloud Run assigns to it at runtime.
+server.port=${PORT:8080}
+server.address=0.0.0.0
+
+# =====================================================================
+# Google Vertex AI Gemini Configuration
+# =====================================================================
+spring.ai.vertex.ai.gemini.enabled=true
+spring.ai.vertex.ai.gemini.project-id=project-67143b4f-6a2b-42be-9ab
+spring.ai.vertex.ai.gemini.location=us-central1
+
+# Using the powerful stable 2026 reasoning model for grading complex exams
+spring.ai.vertex.ai.gemini.chat.options.model=gemini-2.5-pro
+server.http2.enabled=true
+
