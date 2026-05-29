@@ -61,6 +61,27 @@ public class PdfAssemblyService {
     }
 
     public byte[] imagesToPdf(List<MultipartFile> images) throws IOException {
+        // ---------------- PDF PASSTHROUGH ----------------
+
+        if (images.size() == 1) {
+
+            MultipartFile file = images.get(0);
+
+            boolean isPdf =
+                    "application/pdf".equalsIgnoreCase(file.getContentType())
+                    || file.getOriginalFilename()
+                            .toLowerCase()
+                            .endsWith(".pdf");
+
+            if (isPdf) {
+
+                log.info("PDF detected. Returning original bytes directly.");
+
+                return file.getBytes();
+            }
+        }
+
+        // ---------------- IMAGE → PDF ----------------
 
         images.sort(
                 Comparator.comparing(this::extractCreationTime)
