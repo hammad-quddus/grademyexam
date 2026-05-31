@@ -8,7 +8,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.messages.SystemMessage;
 import org.springframework.ai.chat.messages.UserMessage;
-import org.springframework.ai.chat.model.ChatModel; // Swapped to generic interface
+import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.content.Media;
@@ -37,9 +37,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 @Service
 public class ExamEvaluationService {
 
-	private static final Logger log = LoggerFactory.getLogger(ExamEvaluationService.class); // Fixed target logger class
+	private static final Logger log = LoggerFactory.getLogger(ExamEvaluationService.class);
 
-	private final ChatModel chatModel; // Swapped to interface type
+	private final ChatModel chatModel;
 
 	private final PdfAssemblyService pdfAssemblyService;
 
@@ -48,13 +48,16 @@ public class ExamEvaluationService {
 	private final TaskExecutor taskExecutor;
 
 	public ExamEvaluationService(ChatModel chatModel, PdfAssemblyService pdfAssemblyService,
-			TaskExecutor taskExecutor) { // Fixed injection constructor
+			TaskExecutor taskExecutor) {
 		this.chatModel = chatModel;
 		this.pdfAssemblyService = pdfAssemblyService;
 		this.taskExecutor = taskExecutor;
+		this.objectMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 	}
 
-	// legacy implementation
+	/**
+	 * Legacy implementation to grade a single question from raw file attachments.
+	 */
 	public QuestionEvaluationDto evaluateQuestion(List<MultipartFile> paperImages, List<MultipartFile> rubricImages,
 			List<MultipartFile> solutionImages) throws Exception {
 
@@ -68,97 +71,66 @@ public class ExamEvaluationService {
 
 		SystemMessage systemMessage = new SystemMessage(
 				"""
-						        You are an experienced 9th-grade teacher.
+				You are an experienced 9th-grade teacher.
 
-						        Read ALL attached files carefully.
+				Read ALL attached files carefully.
 
-						Tasks:
-						1. Read the rubric
-						2. Read the exam solutions
-						3. Read the student's handwritten paper
-						4. Transcribe the student answers
-						5. Compare against solutions
-						6. Assign marks out of 10
-						7. Identify key expected points that are missing or insufficiently addressed in the student's answer (coverage gaps)
+				Tasks:
+				1. Read the rubric
+				2. Read the exam solutions
+				3. Read the student's handwritten paper
+				4. Transcribe the student answers
+				5. Compare against solutions
+				6. Assign marks out of 10
+				7. Identify key expected points that are missing or insufficiently addressed in the student's answer (coverage gaps)
 
-						Rules:
-						- Never invent student answers
-						- If handwriting is unreadable, explicitly say so
-						- Base grading on the supplied rubric
-						- Be strict but fair
-						- Coverage gaps must strictly come from rubric/official solutions (do not hallucinate new expectations)
-						- Return ONLY valid JSON
-						- Do not return markdown
-						- Do not wrap JSON in triple backticks
-						- The uploaded pages of the student paper may be out of order; use content continuity and context to infer the correct sequence where necessary before grading.
+				Rules:
+				- Never invent student answers
+				- If handwriting is unreadable, explicitly say so
+				- Base grading on the supplied rubric
+				- Be strict but fair
+				- Coverage gaps must strictly come from rubric/official solutions (do not hallucinate new expectations)
+				- Return ONLY valid JSON
+				- Do not return markdown
+				- Do not wrap JSON in triple backticks
+				- The uploaded pages of the student paper may be out of order; use content continuity and context to infer the correct sequence where necessary before grading.
 
-						JSON schema:
-						{
-						  "studentName": string | null,
-						  "questionId": "string",
-						  "questionText": string,
-						  "maxMarks": integer,
-						  "marksAwarded": integer,
-						  "studentAnswerTranscription": string,
-
-						  "officialSolutionKeyPoints": [
-						    string
-						  ],
-
-						  "coverageGaps": [
-						    string
-						  ],
-
-						  "evaluation": {
-						    "accuracy": [
-						      string
-						    ],
-						    "coverage": [
-						      string
-						    ],
-						    "useOfResources": [
-						      string
-						    ],
-						    "structure": [
-						      string
-						    ],
-						    "relevance": [
-						      string
-						    ]
-						  },
-
-						  "evaluationSummary": string,
-
-						  "strengths": [
-						    string
-						  ],
-
-						  "improvements": [
-						    string
-						  ],
-
-						  "factualErrors": [
-						    string
-						  ],
-
-						  "teacherComments": string,
-
-						  "rubricReference": {
-						    "band": {
-						      "min": integer,
-						      "max": integer
-						    },
-						    "descriptor": string
-						  },
-
-						  "confidence": {
-						    "transcriptionConfidence": number,
-						    "gradingConfidence": number
-						  },
-
-						  "requiresHumanReview": boolean
-						}
-						""");
+				JSON schema:
+				{
+				  "studentName": string | null,
+				  "questionId": "string",
+				  "questionText": string,
+				  "maxMarks": integer,
+				  "marksAwarded": integer,
+				  "studentAnswerTranscription": string,
+				  "officialSolutionKeyPoints": [ string ],
+				  "coverageGaps": [ string ],
+				  "evaluation": {
+				    "accuracy": [ string ],
+				    "coverage": [ string ],
+				    "useOfResources": [ string ],
+				    "structure": [ string ],
+				    "relevance": [ string ]
+				  },
+				  "evaluationSummary": string,
+				  "strengths": [ string ],
+				  "improvements": [ string ],
+				  "factualErrors": [ string ],
+				  "teacherComments": string,
+				  "rubricReference": {
+				    "band": {
+				      "min": integer,
+				      "max": integer
+				    },
+				    "descriptor": string
+				  },
+				  "confidence": {
+				    "transcriptionConfidence": number,
+				    "gradingConfidence": number
+				  },
+				  "requiresHumanReview": boolean
+				}
+				""");
 
 		UserMessage rubricMessage = UserMessage.builder().text("This is the grading rubric.")
 				.media(new Media(MimeTypeUtils.parseMimeType("application/pdf"), rubricPdf)).build();
@@ -189,36 +161,23 @@ public class ExamEvaluationService {
 		}
 
 		var raw = response.getResult().getOutput().getText();
-
 		log.info("====== Response from ai model: ========");
 		log.info(raw);
 
-		// objectMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES,
-		// false);
-		// QuestionEvaluationDto dto = objectMapper.readValue(raw,
-		// QuestionEvaluationDto.class);
-
 		BeanOutputConverter<QuestionEvaluationDto> converter = new BeanOutputConverter<>(QuestionEvaluationDto.class);
-		// 3. Let the converter safely translate the output natively
 		QuestionEvaluationDto dto = converter.convert(raw);
 
 		validate(dto);
-
 		return dto;
 	}
 
-	////////
-
 	public RubricDto transcribeRubric(List<MultipartFile> rubricImages) throws Exception {
-
 		byte[] rubricPdfBytes = pdfAssemblyService.imagesToPdf(rubricImages);
 		Resource rubricPdf = new ByteArrayResource(rubricPdfBytes);
-
 		return transcribeRubric(rubricPdf);
 	}
 
 	public RubricDto transcribeRubric(Resource rubricPdf) throws Exception {
-
 		SystemMessage systemMessage = new SystemMessage("""
 				You are a rubric transcription engine.
 
@@ -230,11 +189,9 @@ public class ExamEvaluationService {
 				- Do NOT infer missing grading structures.
 				- Do NOT rewrite or reinterpret descriptors.
 				- Preserve rubric meaning as closely as possible.
-
 				- Rubric categories may apply to multiple questions or question types.
 				- Preserve assessment objective groupings if present (e.g. AO1, AO2).
 				- Do not convert rubric categories into individual exam questions.
-
 
 				QUESTION MAPPING RULES:
 				- Each question must be represented individually.
@@ -242,7 +199,6 @@ public class ExamEvaluationService {
 				- questionId MUST refer to exactly ONE question.
 				- questionId MUST NOT contain ranges, intervals, or multiple values (e.g., "Q2-5a" is invalid).
 				- Use atomic identifiers only (e.g., "Q1a", "Q2b").
-
 				- If a rubric category applies to multiple questions, repeat the mapping entry for each questionId.
 				- Do NOT compress or merge question mappings.
 
@@ -250,7 +206,7 @@ public class ExamEvaluationService {
 				- Do NOT infer question grouping, numbering patterns, or implied ranges from layout or sequence.
 				- Treat each visually distinct question boundary as a separate entity.
 				- If uncertain, prefer over-segmentation (create more question entries rather than fewer).
-				- If a question boundary is unclear, still create a separate entry rather than merging.
+				- If a question boundary is unclear, still create a separate entity rather than merging.
 
 				If information is unclear or unreadable:
 				- set field to null
@@ -261,49 +217,36 @@ public class ExamEvaluationService {
 				- repeated text
 				- layout inconsistencies
 
-
 				OUTPUT:
 				Must strictly follow JSON schema.
 				No extra fields.
 				No commentary.
 
 				JSON Schema:
-
 				{
 				  "rubricId": "string",
 				  "subject": "string",
-
 				  "rubricCategories": [
 				    {
 				      "rubricCategoryId": "string",
 				      "assessmentObjective": "string",
 				      "description": "string",
 				      "scoringRule": "best-fit",
-
 				      "levels": [
 				        {
 				          "levelId": "string",
 				          "levelNumber": 0,
-
 				          "markRange": {
 				            "min": 0,
 				            "max": 0
 				          },
-
 				          "descriptor": "string",
-
-				          "characteristics": [
-				            "string"
-				          ],
-
-				          "evidenceKeywords": [
-				            "string"
-				          ]
+				          "characteristics": [ "string" ],
+				          "evidenceKeywords": [ "string" ]
 				        }
 				      ]
 				    }
 				  ],
-
 				  "questionMappings": [
 				    {
 				      "questionId": "string",
@@ -327,20 +270,15 @@ public class ExamEvaluationService {
 		}
 
 		var raw = response.getResult().getOutput().getText();
-
 		log.info("====== Response from ai model for rubric transcription: ========");
 		log.info(raw);
 
 		objectMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
-
-		RubricDto dto = objectMapper.readValue(raw, RubricDto.class);
-
-		return dto;
+		return objectMapper.readValue(raw, RubricDto.class);
 	}
 
 	/**
-	 * Phase 1b: Transcribes and structures out-of-order official exam solutions and
-	 * marking criteria.
+	 * Phase 1b: Transcribes and structures out-of-order official exam solutions and marking criteria.
 	 */
 	public TranscribedSolutionsDto transcribeOfficialSolutions(List<MultipartFile> solutionImages) throws Exception {
 		byte[] solutionPdfBytes = pdfAssemblyService.imagesToPdf(solutionImages);
@@ -348,38 +286,38 @@ public class ExamEvaluationService {
 
 		SystemMessage systemMessage = new SystemMessage(
 				"""
-						You are an advanced academic OCR coordinator.
+				You are an advanced academic OCR coordinator.
 
-						Task:
-						Analyze the attached Official Exam Solutions PDF. Extract, segment, and structure all question rubrics
-						and answer guidelines.
+				Task:
+				Analyze the attached Official Exam Solutions PDF. Extract, segment, and structure all question rubrics
+				and answer guidelines.
 
-						Rules:
-						1. Reconstruct logical solutions and sub-questions (e.g., Q3a, Q3b, Q1a, Q1b) that may span across pages.
-						2. The pages in the attached PDF may be completely out of order. Use numbering, subject headings, and conceptual flow to piece them together sequentially.
-						3. For each structured question block, extract:
-						   - questionId: Standard identifier (e.g., Q1a, Q3b, Q4a)
-						   - questionText: Full textual prompt of the question.
-						   - maxMarks: Total marks assigned (e.g. 10, 4), parsed from brackets or descriptors.
-						   - officialSolutionKeyPoints: Verbatim expected facts, events, historical figures, verses, or points.
-						   - markingGuidelines: The guidance, instructions, or grading criteria given to examiners for this question.
-						4. Return ONLY valid JSON matching the schema below. Do not wrap in markdown or backticks.
+				Rules:
+				1. Reconstruct logical solutions and sub-questions (e.g., Q3a, Q3b, Q1a, Q1b) that may span across pages.
+				2. The pages in the attached PDF may be completely out of order. Use numbering, subject headings, and conceptual flow to piece them together sequentially.
+				3. For each structured question block, extract:
+				   - questionId: Standard identifier (e.g., Q1a, Q3b, Q4a)
+				   - questionText: Full textual prompt of the question.
+				   - maxMarks: Total marks assigned (e.g. 10, 4), parsed from brackets or descriptors.
+				   - officialSolutionKeyPoints: Verbatim expected facts, events, historical figures, verses, or points.
+				   - markingGuidelines: The guidance, instructions, or grading criteria given to examiners for this question.
+				4. Return ONLY valid JSON matching the schema below. Do not wrap in markdown or backticks.
 
-						JSON schema:
-						{
-						  "subject": "string or null",
-						  "examCode": "string or null",
-						  "questions": [
-						    {
-						      "questionId": "string (e.g., Q1a, Q3b)",
-						      "questionText": "string",
-						      "maxMarks": integer,
-						      "officialSolutionKeyPoints": [ "string" ],
-						      "markingGuidelines": "string"
-						    }
-						  ]
-						}
-						""");
+				JSON schema:
+				{
+				  "subject": "string or null",
+				  "examCode": "string or null",
+				  "questions": [
+				    {
+				      "questionId": "string (e.g., Q1a, Q3b)",
+				      "questionText": "string",
+				      "maxMarks": integer,
+				      "officialSolutionKeyPoints": [ "string" ],
+				      "markingGuidelines": "string"
+				    }
+				  ]
+				}
+				""");
 
 		UserMessage solutionsMessage = UserMessage.builder()
 				.text("Please analyze and reconstruct the structured official exam solutions.")
@@ -389,14 +327,12 @@ public class ExamEvaluationService {
 		ChatResponse response = chatModel.call(prompt);
 		String rawJson = response.getResult().getOutput().getText();
 
-		BeanOutputConverter<TranscribedSolutionsDto> converter = new BeanOutputConverter<>(
-				TranscribedSolutionsDto.class);
+		BeanOutputConverter<TranscribedSolutionsDto> converter = new BeanOutputConverter<>(TranscribedSolutionsDto.class);
 		return converter.convert(rawJson);
 	}
 
 	/**
-	 * Phase 1: Transcribes and segments handwritten student exam pages into
-	 * structured question-answer pairs.
+	 * Phase 1a: Transcribes and segments handwritten student exam pages into structured question-answer pairs.
 	 */
 	public TranscribedExamDto transcribeAndSegmentPaper(List<MultipartFile> paperImages) throws Exception {
 		byte[] paperPdfBytes = pdfAssemblyService.imagesToPdf(paperImages);
@@ -404,37 +340,37 @@ public class ExamEvaluationService {
 
 		SystemMessage systemMessage = new SystemMessage(
 				"""
-						You are an advanced educational AI assistant specialized in document processing and OCR transcription.
+				You are an advanced educational AI assistant specialized in document processing and OCR transcription.
 
-						Task:
-						Analyze the attached student paper PDF. Identify individual handwritten answers, transcribe them exactly,
-						and structure them logically into question-answer blocks.
+				Task:
+				Analyze the attached student paper PDF. Identify individual handwritten answers, transcribe them exactly,
+				and structure them logically into question-answer blocks.
 
-						Rules:
-						1. Reconstruct logical answers that span across page boundaries.
-						2. Pages might be out of order; match by narrative and conceptual continuity.
-						3. Transcribe verbatim. If handwriting is illegible, write "[unreadable handwriting]".
-						4. IGNORE CROSSED-OUT TEXT: If a student has struck through, scribbled over, crossed out, or clearly deleted any text, words, or entire paragraphs, do NOT transcribe them. Skip crossed-out content entirely from the final transcription so the evaluator does not process retracted thoughts.
-						5. Attempt to capture metadata like Student Name, Student ID, Subject, Class/Section, and Date if present.
-						6. Return ONLY valid JSON matching the schema below. Do not wrap in markdown or backticks.
+				Rules:
+				1. Reconstruct logical answers that span across page boundaries.
+				2. Pages might be out of order; match by narrative and conceptual continuity.
+				3. Transcribe verbatim. If handwriting is illegible, write "[unreadable handwriting]".
+				4. IGNORE CROSSED-OUT TEXT: If a student has struck through, scribbled over, crossed out, or clearly deleted any text, words, or entire paragraphs, do NOT transcribe them. Skip crossed-out content entirely from the final transcription so the evaluator does not process retracted thoughts.
+				5. Attempt to capture metadata like Student Name, Student ID, Subject, Class/Section, and Date if present.
+				6. Return ONLY valid JSON matching the schema below. Do not wrap in markdown or backticks.
 
-						JSON schema:
-						{
-						  "subject": "string or null",
-						  "classAndSection": "string or null",
-						  "date": "string or null",
-						  "studentId": "string or null",
-						  "studentName": "string or null",
-						  "questions": [
-						    {
-						      "questionId": "string (e.g., Q1, Q1a, Q2)",
-						      "questionText": "string (the question being answered, inferred from context if implicit)",
-						      "answerText": "string (the complete verbatim transcribed student answer)",
-						      "maxMarks": integer
-						    }
-						  ]
-						}
-						""");
+				JSON schema:
+				{
+				  "subject": "string or null",
+				  "classAndSection": "string or null",
+				  "date": "string or null",
+				  "studentId": "string or null",
+				  "studentName": "string or null",
+				  "questions": [
+				    {
+				      "questionId": "string (e.g., Q1, Q1a, Q2)",
+				      "questionText": "string (the question being answered, inferred from context if implicit)",
+				      "answerText": "string (the complete verbatim transcribed student answer)",
+				      "maxMarks": integer
+				    }
+				  ]
+				}
+				""");
 
 		UserMessage paperMessage = UserMessage.builder()
 				.text("Please transcribe this multi-page student paper and group the responses logically by question.")
@@ -455,77 +391,76 @@ public class ExamEvaluationService {
 		if (result == null) {
 			throw new IllegalStateException("AI returned null response");
 		}
-
 		if (result.marksAwarded() == null || result.maxMarks() == null) {
 			throw new IllegalStateException("Missing marks in evaluation");
 		}
-
 		if (result.rubricReference() == null) {
 			throw new IllegalStateException("Missing rubric reference");
 		}
 	}
 
 	/**
-	 * Phase 2: Evaluates a single pre-transcribed digital student answer against
-	 * its matching official solution.
+	 * Phase 2: Evaluates a single pre-transcribed digital student answer against its matching official solution.
+	 * Strictly adheres to its 3-parameter signature.
 	 */
 	public QuestionEvaluationDto evaluateSingleQuestion(TranscribedQuestionDto transcribedQuestion,
 			TranscribedSolutionQuestionDto matchedSolution, Resource rubricPdf) {
 
 		SystemMessage systemMessage = new SystemMessage(
 				"""
-						You are an experienced academic evaluator.
+				You are an experienced academic evaluator.
 
-						You will receive a clean digital transcription of a single question and student answer.
-						You are also supplied with the specific official solution guidelines for this exact question, along with the global grading rubrics.
+				You will receive a clean digital transcription of a single question and student answer.
+				You are also supplied with the specific official solution guidelines for this exact question, along with the global grading rubrics.
 
-						Tasks:
-						1. Compare the transcribed student answer against the official solution's expectations.
-						2. Evaluate across academic metrics: accuracy, coverage, use of source materials, structure, and relevance.
-						3. Highlight missing critical keypoints (coverage gaps) as defined in the official solution.
-						4. Assign marks fairly but strictly according to the rubric's mark allocations and the question's max marks.
-						5. Provide supportive teacher feedback and document any factual errors.
-						6. If transcription contains "[unreadable handwriting]", flag for human review.
+				Tasks:
+				1. Compare the transcribed student answer against the official solution's expectations.
+				2. Evaluate across academic metrics: accuracy, coverage, use of source materials, structure, and relevance.
+				3. Highlight missing critical keypoints (coverage gaps) as defined in the official solution.
+				4. Assign marks fairly but strictly according to the rubric's mark allocations and the question's max marks.
+				5. Provide supportive teacher feedback and document any factual errors.
+				6. If transcription contains "[unreadable handwriting]", flag for human review.
 
-						Rules:
-						- Grade strictly on evidence found in the transcribed text. Do not hallucinate or invent answers.
-						- Return ONLY valid JSON matching the schema below.
+				Rules:
+				- Grade strictly on evidence found in the transcribed text. Do not hallucinate or invent answers.
+				- Return ONLY valid JSON matching the schema below.
 
-						JSON schema:
-						{
-						  "questionId": "string",
-						  "questionText": "string",
-						  "maxMarks": integer,
-						  "marksAwarded": integer,
-						  "studentAnswerTranscription": "string",
-						  "officialSolutionKeyPoints": [ "string" ],
-						  "coverageGaps": [ "string" ],
-						  "evaluation": {
-						    "accuracy": [ "string" ],
-						    "coverage": [ "string" ],
-						    "useOfResources": [ "string" ],
-						    "structure": [ "string" ],
-						    "relevance": [ "string" ]
-						  },
-						  "evaluationSummary": "string",
-						  "strengths": [ "string" ],
-						  "improvements": [ "string" ],
-						  "factualErrors": [ "string" ],
-						  "teacherComments": "string",
-						  "rubricReference": {
-						    "band": {
-						      "min": integer,
-						      "max": integer
-						    },
-						    "descriptor": "string"
-						  },
-						  "confidence": {
-						    "transcriptionConfidence": number,
-						    "gradingConfidence": number
-						  },
-						  "requiresHumanReview": boolean
-						}
-						""");
+				JSON schema:
+				{
+				  "studentName": "string or null",
+				  "questionId": "string",
+				  "questionText": "string",
+				  "maxMarks": integer,
+				  "marksAwarded": integer,
+				  "studentAnswerTranscription": "string",
+				  "officialSolutionKeyPoints": [ "string" ],
+				  "coverageGaps": [ "string" ],
+				  "evaluation": {
+				    "accuracy": [ "string" ],
+				    "coverage": [ "string" ],
+				    "useOfResources": [ "string" ],
+				    "structure": [ "string" ],
+				    "relevance": [ "string" ]
+				  },
+				  "evaluationSummary": "string",
+				  "strengths": [ "string" ],
+				  "improvements": [ "string" ],
+				  "factualErrors": [ "string" ],
+				  "teacherComments": "string",
+				  "rubricReference": {
+				    "band": {
+				      "min": integer,
+				      "max": integer
+				    },
+				    "descriptor": "string"
+				  },
+				  "confidence": {
+				    "transcriptionConfidence": number,
+				    "gradingConfidence": number
+				  },
+				  "requiresHumanReview": boolean
+				}
+				""");
 
 		String studentAnswerChunk = String.format(
 				"--- STUDENT SUBMISSION ---\nQuestion ID: %s\nQuestion Text: %s\nTranscribed Answer: %s\n",
@@ -553,15 +488,94 @@ public class ExamEvaluationService {
 	}
 
 	/**
+	 * Intermediate Alignment Step:
+	 * Takes the two raw transcription models, passes them to a fast, text-only AI model call, 
+	 * and returns a structured mapping linking each transcribed student question block 
+	 * to its verified official solution metadata.
+	 */
+	public AlignedExamMappingDto alignTranscriptionsWithAI(TranscribedExamDto studentPaper, 
+			TranscribedSolutionsDto officialSolutions) throws Exception {
+
+		log.info("Starting Intermediate AI-Driven Alignment Pass (Text-to-Text)...");
+
+		SystemMessage systemMessage = new SystemMessage(
+				"""
+				You are an advanced academic mapping assistant.
+
+				TASK:
+				Compare the list of transcribed student questions against the list of official solution templates.
+				Resolve any formatting mismatches, naming chaos, or shorthand ID discrepancies. Match each student 
+				question block to its correct, semantic official solution counterpart.
+
+				RULES:
+				1. Align the student's questionId and questionText to the official solutions questions list.
+				2. If the student wrote their answers to Q1a and Q1b in a single continuous transcription block (e.g. Q1), 
+				   split that single transcribed block logically and map it to both Q1a and Q1b official solutions.
+				3. If the student has completely skipped an official question, set "answerText" to "Skipped" and map it anyway 
+				   so that the grading loop can process it as an omitted answer.
+				4. **Sub-question Mark Distribution**: If a parent question contains a total mark value (e.g., 4 marks) 
+				   and is split into multiple distinct subparts (e.g., subparts `(i)` and `(ii)`, or `a` and `b`) but the 
+				   solutions do not explicitly allocate separate marks for each subpart, divide the parent question's total 
+				   marks equally among those subparts in the final mapping. For example, if a parent question has a total 
+				   of 4 marks and is split into two mapped sub-questions, assign `maxMarks = 2` to each subpart in the mapped output.
+				5. Return ONLY valid JSON matching the schema below. Do not wrap in markdown or backticks.
+
+				JSON schema:
+				{
+				  "mappedQuestions": [
+				    {
+				      "studentQuestionId": "string (the ID found in student paper transcription, e.g. Q1, Q2a)",
+				      "officialQuestion": {
+				        "questionId": "string (the exact ID in official solutions, e.g. Q1a, Q1b, Q2a)",
+				        "questionText": "string",
+				        "maxMarks": integer,
+				        "officialSolutionKeyPoints": [ "string" ],
+				        "markingGuidelines": "string"
+				      },
+				      "studentAnswerTranscriptionText": "string"
+				    }
+				  ]
+				}
+				""");
+
+		// Serialize transcription datasets to raw JSON representation
+		String studentPaperJson = objectMapper.writeValueAsString(studentPaper);
+		String officialSolutionsJson = objectMapper.writeValueAsString(officialSolutions);
+
+		String promptInput = String.format(
+				"--- STUDENT PAPER TRANSCRIPTION ---\n%s\n\n--- OFFICIAL EXAM SOLUTIONS ---\n%s\n",
+				studentPaperJson,
+				officialSolutionsJson
+		);
+
+		UserMessage userMessage = UserMessage.builder().text(promptInput).build();
+		Prompt prompt = new Prompt(List.of(systemMessage, userMessage));
+
+		ChatResponse response;
+		try {
+			response = chatModel.call(prompt);
+		} catch (Exception e) {
+			throw new RuntimeException("AI alignment phase failed", e);
+		}
+
+		String rawJson = response.getResult().getOutput().getText();
+		log.info("====== Response from ai model for alignment step: ========");
+		log.info(rawJson);
+
+		BeanOutputConverter<AlignedExamMappingDto> converter = new BeanOutputConverter<>(AlignedExamMappingDto.class);
+		return converter.convert(rawJson);
+	}
+
+	/**
 	 * Orchestrates the full grading pipeline for multi-page papers concurrently.
-	 * Leverages taskExecutor to fork transcription and evaluation phases, then aggregates marks on final completion.
+	 * Backed by a concurrent Fork-Join-Fork alignment model using TaskExecutor.
 	 */
 	public ExamEvaluationDto evaluateEntireExamPipeline(
 			List<MultipartFile> paperImages,
 			List<MultipartFile> rubricImages, 
 			List<MultipartFile> solutionImages) throws Exception {
 
-		log.info("Starting Concurrency Phase 1: Forking Transcriptions...");
+		log.info("Starting Concurrency Phase 1: Forking Student Paper & Solution Transcriptions...");
 
 		// FORK Phase 1: Run both transcription tasks concurrently on separate threads
 		CompletableFuture<TranscribedExamDto> transcribeAndSegmentPaperFuture = CompletableFuture.supplyAsync(() -> {
@@ -593,47 +607,44 @@ public class ExamEvaluationService {
 				transcription.classAndSection(), transcription.date(), transcription.questions().size(),
 				officialSolutions.questions().size());
 
+		// AI ALIGNMENT PHASE: Fast text-only pass to resolve structural ID differences and split blocks
+		AlignedExamMappingDto alignedMapping = alignTranscriptionsWithAI(transcription, officialSolutions);
+
 		// Compile rubric into digital resources (rubrics are short and global, so we can keep as PDF)
 		byte[] rubricPdfBytes = pdfAssemblyService.imagesToPdf(rubricImages);
 		Resource rubricPdf = new ByteArrayResource(rubricPdfBytes);
 
-		log.info("Starting Concurrency Phase 2: Forking Evaluations for all {} questions...", transcription.questions().size());
+		log.info("Starting Concurrency Phase 2: Forking Evaluations for all {} matched questions...", alignedMapping.mappedQuestions().size());
 
-		// FORK Phase 2: Launch parallel grading tasks for each transcribed student response
+		// FORK Phase 2: Launch parallel grading tasks for each mapped question block
 		List<CompletableFuture<QuestionEvaluationDto>> evaluatedQuestionsFutures = new ArrayList<>();
 
-		for (TranscribedQuestionDto transcribedQuestion : transcription.questions()) {
+		for (MappedQuestionAlignmentDto mappedUnit : alignedMapping.mappedQuestions()) {
 
-			log.info("Scheduling Evaluation for Question ID: {}", transcribedQuestion.questionId());
+			log.info("Scheduling Evaluation for Official Question ID: {}", mappedUnit.officialQuestion().questionId());
 
-			// Dynamically resolve and match the correct structured official solution
-			final TranscribedSolutionQuestionDto matchedSolution = officialSolutions.questions().stream()
-					.filter(sol -> sol.questionId().equalsIgnoreCase(transcribedQuestion.questionId()))
-					.findFirst()
-					// Fallback: if no match by questionId, try matching by questionText
-					.orElseGet(() -> officialSolutions.questions().stream()
-							.filter(sol -> sol.questionText().equalsIgnoreCase(transcribedQuestion.questionText()))
-							.findFirst()
-							.orElse(null));
+			// Transform mapped entities into temporary structures matching evaluation inputs
+			// Pass maxMarks as the 4th parameter of the constructor to fix the compilation error
+			TranscribedQuestionDto transformedQuestion = new TranscribedQuestionDto(
+					mappedUnit.officialQuestion().questionId(),
+					mappedUnit.officialQuestion().questionText(),
+					mappedUnit.studentAnswerTranscriptionText(),
+					mappedUnit.officialQuestion().maxMarks()
+			);
 
-			if (matchedSolution == null) {
-				log.warn("No official solution found matching questionId: {}. Grading will proceed with caution.",
-						transcribedQuestion.questionId());
-			}
-
-			// Schedule individual question grading on parallel threads with 3-parameter evaluateSingleQuestion call
+			// Schedule individual question grading on parallel thread pools with high fault-tolerance
 			CompletableFuture<QuestionEvaluationDto> evaluateSingleQuestionFuture = CompletableFuture.supplyAsync(() -> {
 				try {
-					log.info("Async Thread [Evaluation - {}] started.", transcribedQuestion.questionId());
+					log.info("Async Thread [Evaluation - {}] started.", mappedUnit.officialQuestion().questionId());
 					return evaluateSingleQuestion(
-							transcribedQuestion, 
-							matchedSolution, 
+							transformedQuestion, 
+							mappedUnit.officialQuestion(), 
 							rubricPdf
 					);
 				} catch (Exception e) {
-					log.error("Failed to evaluate question ID: {}", transcribedQuestion.questionId(), e);
+					log.error("Failed to evaluate question ID: {}", mappedUnit.officialQuestion().questionId(), e);
 					// Fallback dynamically so one failing question thread doesn't crash the entire transaction execution
-					return createFallbackEvaluation(transcription.studentName(), transcribedQuestion, e.getMessage());
+					return createFallbackEvaluation(transcription.studentName(), transformedQuestion, e.getMessage());
 				}
 			}, taskExecutor);
 
@@ -704,3 +715,17 @@ public class ExamEvaluationService {
 		);
 	}
 }
+
+// =========================================================================
+// Intermediate DTO Records supporting the AI-Driven Alignment Phase
+// =========================================================================
+
+record AlignedExamMappingDto(
+		List<MappedQuestionAlignmentDto> mappedQuestions
+) {}
+
+record MappedQuestionAlignmentDto(
+		String studentQuestionId,
+		TranscribedSolutionQuestionDto officialQuestion,
+		String studentAnswerTranscriptionText
+) {}
