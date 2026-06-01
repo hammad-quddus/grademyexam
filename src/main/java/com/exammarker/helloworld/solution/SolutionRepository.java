@@ -1,0 +1,14 @@
+package com.exammarker.helloworld.solution;
+
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
+
+import java.util.Optional;
+
+@Repository
+public interface SolutionRepository extends JpaRepository<SolutionExtractionEntity, String> {
+
+//    Optional<SolutionExtractionEntity> findByDocumentHash(String documentHash);
+//
+//    boolean existsByDocumentHash(String documentHash);
+}
