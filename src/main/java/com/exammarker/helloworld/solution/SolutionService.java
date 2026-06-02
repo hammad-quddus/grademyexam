@@ -50,4 +50,10 @@ public class SolutionService {
     public Optional<SolutionExtractionEntity> findByHash(String hash) {
         return repository.findById(hash);
     }
+
+    public Optional<SolutionExtractionEntity> findByFiles(List<MultipartFile> files) {
+    	String hash = HashUtil.computeHash(files);
+        return repository.findById(hash);
+    }
+
 }

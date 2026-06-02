@@ -2,6 +2,7 @@ package com.exammarker.helloworld.service;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 
 import org.slf4j.Logger;
@@ -30,6 +31,8 @@ import com.exammarker.helloworld.dto.solution.TranscribedSolutionQuestionDto;
 import com.exammarker.helloworld.dto.solution.TranscribedSolutionsDto;
 import com.exammarker.helloworld.dto.studentpaper.TranscribedExamDto;
 import com.exammarker.helloworld.dto.studentpaper.TranscribedQuestionDto;
+import com.exammarker.helloworld.solution.SolutionExtractionEntity;
+import com.exammarker.helloworld.solution.SolutionService;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -45,12 +48,15 @@ public class ExamEvaluationService {
 	private final ObjectMapper objectMapper = new ObjectMapper();
 
 	private final TaskExecutor taskExecutor;
+	
+	private final SolutionService solutionService;
 
 	public ExamEvaluationService(ChatModel chatModel, PdfAssemblyService pdfAssemblyService,
-			TaskExecutor taskExecutor) {
+			TaskExecutor taskExecutor, SolutionService solutionService) {
 		this.chatModel = chatModel;
 		this.pdfAssemblyService = pdfAssemblyService;
 		this.taskExecutor = taskExecutor;
+		this.solutionService = solutionService;
 		this.objectMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 	}
 
@@ -59,6 +65,18 @@ public class ExamEvaluationService {
 	 * Phase 1b: Transcribes and structures out-of-order official exam solutions and marking criteria.
 	 */
 	public TranscribedSolutionsDto transcribeOfficialSolutions(List<MultipartFile> solutionImages) throws Exception {
+		
+		Optional<SolutionExtractionEntity> solutionExtractionEntity = solutionService.findByFiles(solutionImages);
+		if(solutionExtractionEntity.isPresent()) {
+			log.info("Entry found in cache for files: {}", solutionExtractionEntity.get().getDocumentHash());
+			
+			String rawJson = solutionExtractionEntity.get().getExtractionJson();
+			BeanOutputConverter<TranscribedSolutionsDto> converter = new BeanOutputConverter<>(TranscribedSolutionsDto.class);
+			return converter.convert(rawJson);		
+		}
+		
+		log.info("Cache miss for solutions document. Initiating AI OCR transcription...");
+		
 		byte[] solutionPdfBytes = pdfAssemblyService.imagesToPdf(solutionImages);
 		Resource solutionsPdf = new ByteArrayResource(solutionPdfBytes);
 
@@ -106,7 +124,12 @@ public class ExamEvaluationService {
 		String rawJson = response.getResult().getOutput().getText();
 
 		BeanOutputConverter<TranscribedSolutionsDto> converter = new BeanOutputConverter<>(TranscribedSolutionsDto.class);
-		return converter.convert(rawJson);
+		TranscribedSolutionsDto res = converter.convert(rawJson);
+		
+		solutionService.save(solutionImages, rawJson);
+		
+		
+		return res;
 	}
 
 	/**
