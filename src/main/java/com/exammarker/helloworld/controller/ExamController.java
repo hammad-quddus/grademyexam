@@ -13,8 +13,6 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
 import com.exammarker.helloworld.dto.ExamEvaluationDto;
-import com.exammarker.helloworld.dto.QuestionEvaluationDto;
-import com.exammarker.helloworld.dto.rubric.RubricDto;
 import com.exammarker.helloworld.dto.solution.TranscribedSolutionsDto;
 import com.exammarker.helloworld.dto.studentpaper.TranscribedExamDto;
 import com.exammarker.helloworld.service.ExamEvaluationService;
@@ -31,12 +29,12 @@ public class ExamController {
     
     
     private final ExamEvaluationService evaluationService;
-    private final PdfAssemblyService pdfAssemblyservice;
 
 
-    public ExamController(ExamEvaluationService service, PdfAssemblyService pdfAssemblyservice) {
+
+    public ExamController(ExamEvaluationService service) {
         this.evaluationService = service;
-        this.pdfAssemblyservice = pdfAssemblyservice;
+
     }
     
     
@@ -68,34 +66,34 @@ public class ExamController {
     }
    
     
-    @PostMapping(value = "/transcriberubric", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public RubricDto transcribeRubric(
-
-    		@RequestPart(value = "rubric", required = true) List<MultipartFile> rubricImages
-
-    ) throws Exception {
-
-    	log.info("endpoint: transcriberubric...");
- 
-    	return evaluationService.transcribeRubric(rubricImages);
-
-    }
+//    @PostMapping(value = "/transcriberubric", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+//    public RubricDto transcribeRubric(
+//
+//    		@RequestPart(value = "rubric", required = true) List<MultipartFile> rubricImages
+//
+//    ) throws Exception {
+//
+//    	log.info("endpoint: transcriberubric...");
+// 
+//    	return evaluationService.transcribeRubric(rubricImages);
+//
+//    }
     
-    @PostMapping(value = "/evaluate", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public QuestionEvaluationDto evaluate(
-            @RequestPart(value = "paperImages", required = true) List<MultipartFile> paperImages,
-            @RequestPart(value = "rubricImages", required = true) List<MultipartFile> rubricImages,
-            @RequestPart(value = "solutionImages", required = true) List<MultipartFile> solutionImages
-    ) throws Exception {
-    	
-    	log.info("endpoint: evaluat...");
-    	log.info("total paperImages: " + paperImages.size());
-    	log.info("total rubricImages: " + rubricImages.size());
-    	log.info("total solutionImages: " + solutionImages.size());
-    	
-    	
-    	return evaluationService.evaluateQuestion(paperImages, rubricImages, solutionImages);
-   }    
+//    @PostMapping(value = "/evaluate", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+//    public QuestionEvaluationDto evaluate(
+//            @RequestPart(value = "paperImages", required = true) List<MultipartFile> paperImages,
+//            @RequestPart(value = "rubricImages", required = true) List<MultipartFile> rubricImages,
+//            @RequestPart(value = "solutionImages", required = true) List<MultipartFile> solutionImages
+//    ) throws Exception {
+//    	
+//    	log.info("endpoint: evaluat...");
+//    	log.info("total paperImages: " + paperImages.size());
+//    	log.info("total rubricImages: " + rubricImages.size());
+//    	log.info("total solutionImages: " + solutionImages.size());
+//    	
+//    	
+//    	return evaluationService.evaluateQuestion(paperImages, rubricImages, solutionImages);
+//   }    
     
     
     @PostMapping(value = "/evaluatefullexam", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)

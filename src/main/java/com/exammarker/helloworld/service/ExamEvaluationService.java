@@ -25,7 +25,6 @@ import com.exammarker.helloworld.dto.ConfidenceDto;
 import com.exammarker.helloworld.dto.EvaluationDto;
 import com.exammarker.helloworld.dto.ExamEvaluationDto;
 import com.exammarker.helloworld.dto.QuestionEvaluationDto;
-import com.exammarker.helloworld.dto.rubric.RubricDto;
 import com.exammarker.helloworld.dto.rubric.RubricReferenceDto;
 import com.exammarker.helloworld.dto.solution.TranscribedSolutionQuestionDto;
 import com.exammarker.helloworld.dto.solution.TranscribedSolutionsDto;
@@ -166,18 +165,6 @@ public class ExamEvaluationService {
 		return converter.convert(rawJson);
 	}
 
-	private void validate(QuestionEvaluationDto result) {
-		if (result == null) {
-			throw new IllegalStateException("AI returned null response");
-		}
-		if (result.marksAwarded() == null || result.maxMarks() == null) {
-			throw new IllegalStateException("Missing marks in evaluation");
-		}
-		if (result.rubricReference() == null) {
-			throw new IllegalStateException("Missing rubric reference");
-		}
-	}
-
 	/**
 	 * Phase 2: Evaluates a single pre-transcribed digital student answer against its matching official solution.
 	 * Strictly adheres to its 3-parameter signature.
@@ -269,10 +256,10 @@ public class ExamEvaluationService {
 	/**
 	 * Intermediate Alignment Step:
 	 * Takes the two raw transcription models, passes them to a fast, text-only AI model call, 
-	 * and returns a structured mapping linking each transcribed student question block 
-	 * to its verified official solution metadata.
+	 * and returns a clean TranscribedExamDto where the student's transcribed responses 
+	 * are strictly re-organized, aligned, and matched directly to the verified official solution slots.
 	 */
-	public AlignedExamMappingDto alignTranscriptionsWithAI(TranscribedExamDto studentPaper, 
+	public TranscribedExamDto alignTranscriptionsWithAI(TranscribedExamDto studentPaper, 
 			TranscribedSolutionsDto officialSolutions) throws Exception {
 
 		log.info("Starting Intermediate AI-Driven Alignment Pass (Text-to-Text)...");
@@ -283,41 +270,41 @@ public class ExamEvaluationService {
 
 				TASK:
 				Compare the list of transcribed student questions against the list of official solution templates.
-				Resolve any formatting mismatches, naming chaos, or shorthand ID discrepancies. Match each student 
-				question block to its correct, semantic official solution counterpart.
+				Resolve any formatting mismatches, naming chaos, or shorthand ID discrepancies. Re-organize, align, 
+				and map each student question answer transcription block strictly to its correct official solution questionId.
 
 				RULES:
-				1. Align the student's questionId and questionText to the official solutions questions list.
-				2. If the student wrote their answers to Q1a and Q1b in a single continuous transcription block (e.g. Q1), 
-				   split that single transcribed block logically and map it to both Q1a and Q1b official solutions.
-				3. If the student has completely skipped an official question, set "answerText" to "Skipped" and map it anyway 
-				   so that the grading loop can process it as an omitted answer.
+				1. Re-organize and match the student's answers so they map strictly to the official "questionId"s.
+				2. If the student wrote their answers to multiple sub-questions in a single continuous transcription block (e.g. Q1), 
+				   split that single transcribed block logically and map it to both separate subpart official solutions (e.g., Q1a and Q1b).
+				3. If the student has completely skipped an official question, set "answerText" to "Skipped" in the questions list.
 				4. **Sub-question Mark Distribution**: If a parent question contains a total mark value (e.g., 4 marks) 
 				   and is split into multiple distinct subparts (e.g., subparts `(i)` and `(ii)`, or `a` and `b`) but the 
 				   solutions do not explicitly allocate separate marks for each subpart, divide the parent question's total 
 				   marks equally among those subparts in the final mapping. For example, if a parent question has a total 
 				   of 4 marks and is split into two mapped sub-questions, assign `maxMarks = 2` to each subpart in the mapped output.
-				5. Return ONLY valid JSON matching the schema below. Do not wrap in markdown or backticks.
+				5. Output must preserve student header metadata such as studentName, classAndSection, subject, etc.
+				6. Return ONLY valid JSON matching the TranscribedExamDto schema below. Do not wrap in markdown or backticks.
 
 				JSON schema:
 				{
-				  "mappedQuestions": [
+				  "subject": "string or null",
+				  "classAndSection": "string or null",
+				  "date": "string or null",
+				  "studentId": "string or null",
+				  "studentName": "string or null",
+				  "questions": [
 				    {
-				      "studentQuestionId": "string (the ID found in student paper transcription, e.g. Q1, Q2a)",
-				      "officialQuestion": {
-				        "questionId": "string (the exact ID in official solutions, e.g. Q1a, Q1b, Q2a)",
-				        "questionText": "string",
-				        "maxMarks": integer,
-				        "officialSolutionKeyPoints": [ "string" ],
-				        "markingGuidelines": "string"
-				      },
-				      "studentAnswerTranscriptionText": "string"
+				      "questionId": "string (MUST match official questionId exactly)",
+				      "questionText": "string (MUST match official questionText exactly)",
+				      "answerText": "string (the student's transcribed answer)",
+				      "maxMarks": integer
 				    }
 				  ]
 				}
 				""");
 
-		// Serialize transcription datasets to raw JSON representation
+		// Serialize transcription datasets to raw JSON strings
 		String studentPaperJson = objectMapper.writeValueAsString(studentPaper);
 		String officialSolutionsJson = objectMapper.writeValueAsString(officialSolutions);
 
@@ -341,7 +328,7 @@ public class ExamEvaluationService {
 		log.info("====== Response from ai model for alignment step: ========");
 		log.info(rawJson);
 
-		BeanOutputConverter<AlignedExamMappingDto> converter = new BeanOutputConverter<>(AlignedExamMappingDto.class);
+		BeanOutputConverter<TranscribedExamDto> converter = new BeanOutputConverter<>(TranscribedExamDto.class);
 		return converter.convert(rawJson);
 	}
 
@@ -386,44 +373,46 @@ public class ExamEvaluationService {
 				transcription.classAndSection(), transcription.date(), transcription.questions().size(),
 				officialSolutions.questions().size());
 
-		// AI ALIGNMENT PHASE: Fast text-only pass to resolve structural ID differences and split blocks
-		AlignedExamMappingDto alignedMapping = alignTranscriptionsWithAI(transcription, officialSolutions);
+		// AI ALIGNMENT PHASE: Fast text-only pass utilizing TranscribedExamDto directly to align structures and split blocks
+		TranscribedExamDto alignedTranscription = alignTranscriptionsWithAI(transcription, officialSolutions);
 
 		// Compile rubric into digital resources (rubrics are short and global, so we can keep as PDF)
 		byte[] rubricPdfBytes = pdfAssemblyService.imagesToPdf(rubricImages);
 		Resource rubricPdf = new ByteArrayResource(rubricPdfBytes);
 
-		log.info("Starting Concurrency Phase 2: Forking Evaluations for all {} matched questions...", alignedMapping.mappedQuestions().size());
+		log.info("Starting Concurrency Phase 2: Forking Evaluations for all {} matched questions...", alignedTranscription.questions().size());
 
-		// FORK Phase 2: Launch parallel grading tasks for each mapped question block
+		// FORK Phase 2: Launch parallel grading tasks for each matched aligned question block
 		List<CompletableFuture<QuestionEvaluationDto>> evaluatedQuestionsFutures = new ArrayList<>();
 
-		for (MappedQuestionAlignmentDto mappedUnit : alignedMapping.mappedQuestions()) {
+		for (TranscribedQuestionDto alignedQuestion : alignedTranscription.questions()) {
 
-			log.info("Scheduling Evaluation for Official Question ID: {}", mappedUnit.officialQuestion().questionId());
+			log.info("Scheduling Evaluation for Official Question ID: {}", alignedQuestion.questionId());
 
-			// Transform mapped entities into temporary structures matching evaluation inputs
-			// Pass maxMarks as the 4th parameter of the constructor to fix the compilation error
-			TranscribedQuestionDto transformedQuestion = new TranscribedQuestionDto(
-					mappedUnit.officialQuestion().questionId(),
-					mappedUnit.officialQuestion().questionText(),
-					mappedUnit.studentAnswerTranscriptionText(),
-					mappedUnit.officialQuestion().maxMarks()
-			);
+			// In-memory lookup: Match strictly by the cleaned, AI-aligned questionId
+			final TranscribedSolutionQuestionDto matchedSolution = officialSolutions.questions().stream()
+					.filter(sol -> sol.questionId().equalsIgnoreCase(alignedQuestion.questionId()))
+					.findFirst()
+					.orElse(null);
+
+			if (matchedSolution == null) {
+				log.warn("No official solution found matching questionId: {}. Grading will proceed with caution.",
+						alignedQuestion.questionId());
+			}
 
 			// Schedule individual question grading on parallel thread pools with high fault-tolerance
 			CompletableFuture<QuestionEvaluationDto> evaluateSingleQuestionFuture = CompletableFuture.supplyAsync(() -> {
 				try {
-					log.info("Async Thread [Evaluation - {}] started.", mappedUnit.officialQuestion().questionId());
+					log.info("Async Thread [Evaluation - {}] started.", alignedQuestion.questionId());
 					return evaluateSingleQuestion(
-							transformedQuestion, 
-							mappedUnit.officialQuestion(), 
+							alignedQuestion, 
+							matchedSolution, 
 							rubricPdf
 					);
 				} catch (Exception e) {
-					log.error("Failed to evaluate question ID: {}", mappedUnit.officialQuestion().questionId(), e);
+					log.error("Failed to evaluate question ID: {}", alignedQuestion.questionId(), e);
 					// Fallback dynamically so one failing question thread doesn't crash the entire transaction execution
-					return createFallbackEvaluation(transcription.studentName(), transformedQuestion, e.getMessage());
+					return createFallbackEvaluation(alignedTranscription.studentName(), alignedQuestion, e.getMessage());
 				}
 			}, taskExecutor);
 
@@ -453,11 +442,11 @@ public class ExamEvaluationService {
 
 		// Assemble the final consolidated response using modern constructor matching
 		ExamEvaluationDto finalReport = new ExamEvaluationDto(
-				transcription.studentName(), 
-				transcription.studentId(),
-				transcription.subject(), 
-				transcription.classAndSection(), 
-				transcription.date(), 
+				alignedTranscription.studentName(), 
+				alignedTranscription.studentId(),
+				alignedTranscription.subject(), 
+				alignedTranscription.classAndSection(), 
+				alignedTranscription.date(), 
 				totalMaxMarks,
 				totalMarksAwarded, 
 				evaluatedQuestions
@@ -494,17 +483,3 @@ public class ExamEvaluationService {
 		);
 	}
 }
-
-// =========================================================================
-// Intermediate DTO Records supporting the AI-Driven Alignment Phase
-// =========================================================================
-
-record AlignedExamMappingDto(
-		List<MappedQuestionAlignmentDto> mappedQuestions
-) {}
-
-record MappedQuestionAlignmentDto(
-		String studentQuestionId,
-		TranscribedSolutionQuestionDto officialQuestion,
-		String studentAnswerTranscriptionText
-) {}
