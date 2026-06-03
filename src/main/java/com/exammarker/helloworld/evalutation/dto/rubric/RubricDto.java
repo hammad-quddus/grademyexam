@@ -1,4 +1,4 @@
-package com.exammarker.helloworld.dto.rubric;
+package com.exammarker.helloworld.evalutation.dto.rubric;
 import java.util.List;
 
 public record RubricDto(

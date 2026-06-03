@@ -12,10 +12,11 @@ import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
-import com.exammarker.helloworld.dto.ExamEvaluationDto;
-import com.exammarker.helloworld.dto.solution.TranscribedSolutionsDto;
-import com.exammarker.helloworld.dto.studentpaper.TranscribedExamDto;
-import com.exammarker.helloworld.service.ExamEvaluationService;
+import com.exammarker.helloworld.evaluation.ExamEvaluationService;
+import com.exammarker.helloworld.evalutation.dto.ExamEvaluationDto;
+import com.exammarker.helloworld.evalutation.dto.solution.TranscribedSolutionsDto;
+import com.exammarker.helloworld.evalutation.dto.studentpaper.TranscribedExamDto;
+import com.exammarker.helloworld.service.GradingService;
 import com.exammarker.helloworld.service.PdfAssemblyService;
 
 
@@ -28,12 +29,13 @@ public class ExamController {
             LoggerFactory.getLogger(PdfAssemblyService.class);
     
     
-    private final ExamEvaluationService evaluationService;
+    private final GradingService gradingService;
+    private final ExamEvaluationService examEvaluationService;
 
 
-
-    public ExamController(ExamEvaluationService service) {
-        this.evaluationService = service;
+    public ExamController(GradingService service, ExamEvaluationService examEvaluationService) {
+        this.gradingService = service;
+        this.examEvaluationService = examEvaluationService;
 
     }
     
@@ -47,7 +49,7 @@ public class ExamController {
 
     	log.info("endpoint: transcribestudentpaper...");
  
-    	return evaluationService.transcribeAndSegmentPaper(studentpaperImages);
+    	return gradingService.transcribeAndSegmentPaper(studentpaperImages);
 
     }
     
@@ -61,7 +63,7 @@ public class ExamController {
 
     	log.info("endpoint: transcribesolution...");
  
-    	return evaluationService.transcribeOfficialSolutions(solutionImages);
+    	return gradingService.transcribeOfficialSolutions(solutionImages);
 
     }
    
@@ -75,7 +77,7 @@ public class ExamController {
 //
 //    	log.info("endpoint: transcriberubric...");
 // 
-//    	return evaluationService.transcribeRubric(rubricImages);
+//    	return gradingService.transcribeRubric(rubricImages);
 //
 //    }
     
@@ -92,12 +94,12 @@ public class ExamController {
 //    	log.info("total solutionImages: " + solutionImages.size());
 //    	
 //    	
-//    	return evaluationService.evaluateQuestion(paperImages, rubricImages, solutionImages);
+//    	return gradingService.evaluateQuestion(paperImages, rubricImages, solutionImages);
 //   }    
     
     
     @PostMapping(value = "/evaluatefullexam", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ExamEvaluationDto evaluateFullExam(
+    public ExamEvaluationResponse evaluateFullExam(
             @RequestPart(value = "paperImages", required = true) List<MultipartFile> paperImages,
             @RequestPart(value = "rubricImages", required = true) List<MultipartFile> rubricImages,
             @RequestPart(value = "solutionImages", required = true) List<MultipartFile> solutionImages
@@ -109,7 +111,15 @@ public class ExamController {
     	log.info("total solutionImages: " + solutionImages.size());
     	
     	
-    	return evaluationService.evaluateEntireExamPipeline(paperImages, rubricImages, solutionImages);
+    	ExamEvaluationDto dto =  gradingService.evaluateEntireExamPipeline(paperImages, rubricImages, solutionImages);
+    	long id = examEvaluationService.saveEvaluation(dto);
+    	
+    	return new ExamEvaluationResponse(id, dto);
    }        
     
 }
+
+record ExamEvaluationResponse(
+        Long id,
+        ExamEvaluationDto evaluation
+) {}

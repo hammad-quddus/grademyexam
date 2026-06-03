@@ -1,7 +1,7 @@
-package com.exammarker.helloworld.dto.rubric;
+package com.exammarker.helloworld.evalutation.dto.rubric;
 import java.util.List;
 
-import com.exammarker.helloworld.dto.MarkRangeDto;
+import com.exammarker.helloworld.evalutation.dto.MarkRangeDto;
 
 public record LevelScaleDto(
         Integer levelNumber,

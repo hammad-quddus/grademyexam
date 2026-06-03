@@ -16,13 +16,13 @@ import org.springframework.core.io.Resource;
 import org.springframework.util.MimeTypeUtils;
 import org.springframework.web.multipart.MultipartFile;
 
-import com.exammarker.helloworld.dto.QuestionEvaluationDto;
-import com.exammarker.helloworld.dto.rubric.RubricDto;
+import com.exammarker.helloworld.evalutation.dto.QuestionEvaluationDto;
+import com.exammarker.helloworld.evalutation.dto.rubric.RubricDto;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
-public class LegacyExamEvaluationService {
-	private static final Logger log = LoggerFactory.getLogger(ExamEvaluationService.class);
+public class LegacyGradingService {
+	private static final Logger log = LoggerFactory.getLogger(GradingService.class);
 
 	private final ChatModel chatModel;
 
@@ -32,7 +32,7 @@ public class LegacyExamEvaluationService {
 
 
 
-	public LegacyExamEvaluationService(ChatModel chatModel, PdfAssemblyService pdfAssemblyService) {
+	public LegacyGradingService(ChatModel chatModel, PdfAssemblyService pdfAssemblyService) {
 		this.chatModel = chatModel;
 		this.pdfAssemblyService = pdfAssemblyService;
 		this.objectMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);

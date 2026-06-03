@@ -1,8 +1,8 @@
-package com.exammarker.helloworld.dto;
+package com.exammarker.helloworld.evalutation.dto;
 
 import java.util.List;
 
-import com.exammarker.helloworld.dto.rubric.RubricReferenceDto;
+import com.exammarker.helloworld.evalutation.dto.rubric.RubricReferenceDto;
 
 
 // raw output layer

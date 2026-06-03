@@ -21,25 +21,25 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.MimeTypeUtils;
 import org.springframework.web.multipart.MultipartFile;
 
-import com.exammarker.helloworld.dto.BandDto;
-import com.exammarker.helloworld.dto.ConfidenceDto;
-import com.exammarker.helloworld.dto.EvaluationDto;
-import com.exammarker.helloworld.dto.ExamEvaluationDto;
-import com.exammarker.helloworld.dto.QuestionEvaluationDto;
-import com.exammarker.helloworld.dto.rubric.RubricReferenceDto;
-import com.exammarker.helloworld.dto.solution.TranscribedSolutionQuestionDto;
-import com.exammarker.helloworld.dto.solution.TranscribedSolutionsDto;
-import com.exammarker.helloworld.dto.studentpaper.TranscribedExamDto;
-import com.exammarker.helloworld.dto.studentpaper.TranscribedQuestionDto;
+import com.exammarker.helloworld.evalutation.dto.BandDto;
+import com.exammarker.helloworld.evalutation.dto.ConfidenceDto;
+import com.exammarker.helloworld.evalutation.dto.EvaluationDto;
+import com.exammarker.helloworld.evalutation.dto.ExamEvaluationDto;
+import com.exammarker.helloworld.evalutation.dto.QuestionEvaluationDto;
+import com.exammarker.helloworld.evalutation.dto.rubric.RubricReferenceDto;
+import com.exammarker.helloworld.evalutation.dto.solution.TranscribedSolutionQuestionDto;
+import com.exammarker.helloworld.evalutation.dto.solution.TranscribedSolutionsDto;
+import com.exammarker.helloworld.evalutation.dto.studentpaper.TranscribedExamDto;
+import com.exammarker.helloworld.evalutation.dto.studentpaper.TranscribedQuestionDto;
 import com.exammarker.helloworld.solution.SolutionExtractionEntity;
 import com.exammarker.helloworld.solution.SolutionService;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 @Service
-public class ExamEvaluationService {
+public class GradingService {
 
-	private static final Logger log = LoggerFactory.getLogger(ExamEvaluationService.class);
+	private static final Logger log = LoggerFactory.getLogger(GradingService.class);
 
 	private final ChatModel chatModel;
 
@@ -51,7 +51,7 @@ public class ExamEvaluationService {
 	
 	private final SolutionService solutionService;
 
-	public ExamEvaluationService(ChatModel chatModel, PdfAssemblyService pdfAssemblyService,
+	public GradingService(ChatModel chatModel, PdfAssemblyService pdfAssemblyService,
 			TaskExecutor taskExecutor, SolutionService solutionService) {
 		this.chatModel = chatModel;
 		this.pdfAssemblyService = pdfAssemblyService;
