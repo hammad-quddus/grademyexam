@@ -19,48 +19,42 @@ import com.exammarker.helloworld.service.pdf.ExamPdfService;
 @RequestMapping("/evaluations")
 public class ExamEvaluationController {
 
-    private final ExamEvaluationService examEvaluationService;
-    private final ExamPdfService examPdfService;
-    
-    
-    public ExamEvaluationController(ExamEvaluationService examEvaluationService, ExamPdfService examPdfService) {
-        this.examEvaluationService = examEvaluationService;
-        this.examPdfService = examPdfService;
-    }
+	private final ExamEvaluationService examEvaluationService;
+	private final ExamPdfService examPdfService;
 
-    @PostMapping
-    public ResponseEntity<Map<String, Long>> create(@RequestBody ExamEvaluationDto dto) {
+	public ExamEvaluationController(ExamEvaluationService examEvaluationService, ExamPdfService examPdfService) {
+		this.examEvaluationService = examEvaluationService;
+		this.examPdfService = examPdfService;
+	}
 
-        Long id = examEvaluationService.saveEvaluation(dto);
+	@PostMapping
+	public ResponseEntity<Map<String, Long>> create(@RequestBody ExamEvaluationDto dto) {
 
-        return ResponseEntity.ok(Map.of("id", id));
-    }
-    
-    @GetMapping("/{id}")
-    public ResponseEntity<ExamEvaluationDto> get(@PathVariable Long id) {
-        return ResponseEntity.ok(examEvaluationService.getById(id));
-    }
+		Long id = examEvaluationService.saveEvaluation(dto);
 
-    @GetMapping("/{id}/pdf")
-    public ResponseEntity<byte[]> pdf(
-            @PathVariable Long id
-    ) {
+		return ResponseEntity.ok(Map.of("id", id));
+	}
 
-        ExamEvaluationDto dto =
-                examEvaluationService.getById(id);
+	@GetMapping("/{id}")
+	public ResponseEntity<ExamEvaluationDto> get(@PathVariable Long id) {
+		return ResponseEntity.ok(examEvaluationService.getById(id));
+	}
 
+	@GetMapping("/{id}/pdf")
+	public ResponseEntity<byte[]> pdf(@PathVariable Long id) {
 
-        byte[] pdf =
-                examPdfService.generate(dto);
+		ExamEvaluationDto dto = examEvaluationService.getById(id);
 
+		byte[] pdf = examPdfService.generate(dto);
 
-        return ResponseEntity.ok()
-                .contentType(MediaType.APPLICATION_PDF)
-                .header(
-                  "Content-Disposition",
-                  "attachment; filename=evaluation-"+id+".pdf"
-                )
-                .body(pdf);
-    }
-    
+		String studentName = dto.studentName().replaceAll("[^a-zA-Z0-9]", "_");
+
+		String date = java.time.LocalDate.now().format(java.time.format.DateTimeFormatter.ofPattern("dd_MM_yyyy"));
+
+		String fileName = id + "_" + studentName + "_" + date + ".pdf";
+
+		return ResponseEntity.ok().contentType(MediaType.APPLICATION_PDF)
+				.header("Content-Disposition", "attachment; filename=" + fileName).body(pdf);
+	}
+
 }
