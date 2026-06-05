@@ -12,9 +12,6 @@ import org.apache.pdfbox.pdmodel.font.Standard14Fonts;
 
 public class PdfLayoutEngine {
 
-    private static final PDType1Font FONT =
-            new PDType1Font(Standard14Fonts.FontName.HELVETICA);
-
     private final PDDocument document;
 
     private PDPage page;
@@ -23,9 +20,13 @@ public class PdfLayoutEngine {
     private float y = 750;
 
     private static final float LEFT = 50;
+    private static final float RIGHT = 550;
+    private static final float BOTTOM_LIMIT = 70;
 
-    // track all streams safely
-    private final List<PDPageContentStream> streams = new ArrayList<>();
+    private static final float LINE_GAP = 5;
+
+    private final PDType1Font font =
+            new PDType1Font(Standard14Fonts.FontName.HELVETICA);
 
     public PdfLayoutEngine(PDDocument document) throws IOException {
         this.document = document;
@@ -33,16 +34,20 @@ public class PdfLayoutEngine {
     }
 
     // ---------------- PUBLIC API ----------------
+    
+    public void gap(float amount) {
+        y -= amount;
+    }
 
-    public void title(String value) throws IOException {
-        write(value, 16);
-        gap(20);
+    public void title(String text) throws IOException {
+        write(text, 16);
+        gap(15);
     }
 
     public void section(String heading, String body) throws IOException {
         write(heading, 12);
-        write(body == null ? "" : body, 10);
-        gap(15);
+        write(safe(body), 10);
+        gap(10);
     }
 
     public void list(String heading, List<String> items) throws IOException {
@@ -52,13 +57,25 @@ public class PdfLayoutEngine {
         write(heading, 12);
 
         for (String item : items) {
-            write("- " + item, 10);
+            write("• " + safe(item), 10);
         }
 
-        gap(15);
+        gap(10);
     }
 
-    // ---------------- CORE WRITE ----------------
+    // ✔ divider line between questions
+    public void line() throws IOException {
+
+        ensureSpace(15);
+
+        content.moveTo(LEFT, y);
+        content.lineTo(RIGHT, y);
+        content.stroke();
+
+        y -= 12;
+    }
+
+    // ---------------- CORE WRITER ----------------
 
     private void write(String text, float size) throws IOException {
 
@@ -66,33 +83,24 @@ public class PdfLayoutEngine {
 
         for (String line : lines) {
 
-            checkPage(size);
+            ensureSpace(size);
 
             content.beginText();
-            content.setFont(FONT, size);
+            content.setFont(font, size);
             content.newLineAtOffset(LEFT, y);
             content.showText(line);
             content.endText();
 
-            y -= size + 5;
+            y -= (size + LINE_GAP);
         }
     }
 
-    private List<String> wrap(String text, float size) {
+    // ---------------- PAGE SAFETY ----------------
 
-        int charsPerLine = size >= 14 ? 50 : 85;
+    private void ensureSpace(float size) throws IOException {
 
-        String cleaned = (text == null) ? "" : text.replace("\n", " ");
-
-        return List.of(cleaned.split("(?<=\\G.{" + charsPerLine + "})"));
-    }
-
-    // ---------------- PAGE MANAGEMENT ----------------
-
-    private void checkPage(float size) throws IOException {
-
-        if (y < 70) {
-            closeCurrentStream();
+        if (y < BOTTOM_LIMIT) {
+            content.close();
             newPage();
         }
     }
@@ -103,55 +111,37 @@ public class PdfLayoutEngine {
         document.addPage(page);
 
         content = new PDPageContentStream(document, page);
-        streams.add(content);
 
         y = 750;
     }
 
-    private void closeCurrentStream() throws IOException {
-        if (content != null) {
-            content.close();
-            content = null;
-        }
+    // ---------------- WRAPPING ----------------
+
+    private List<String> wrap(String text, float size) {
+
+        int charsPerLine = (size >= 14) ? 55 : 90;
+
+        String clean = safe(text).replace("\n", " ");
+
+        String[] split = clean.split("(?<=\\G.{" + charsPerLine + "})");
+
+        List<String> lines = new ArrayList<>();
+        for (String s : split) lines.add(s);
+
+        return lines;
     }
 
-    private void gap(float amount) {
-        y -= amount;
+    // ---------------- UTIL ----------------
+
+    private String safe(String s) {
+        return (s == null) ? "" : s;
     }
 
-    private float getPageWidth() {
-        return page.getMediaBox().getWidth();
-    }
-    
-    public void line() throws IOException {
-
-        checkPage(0);
-
-        float right = getPageWidth() - LEFT;
-
-        content.moveTo(LEFT, y);
-        content.lineTo(right, y);
-        content.stroke();
-
-        y -= 10;
-    }
-    
-    // ---------------- FINALIZATION ----------------
+    // ---------------- CLOSE ----------------
 
     public void close() throws IOException {
-
-        // close active stream first
-        closeCurrentStream();
-
-        // safety: close any orphan streams
-        for (PDPageContentStream s : streams) {
-            if (s != null) {
-                try {
-                    s.close();
-                } catch (Exception ignored) {}
-            }
+        if (content != null) {
+            content.close();
         }
-
-        streams.clear();
     }
 }
