@@ -13,7 +13,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
 import com.exammarker.helloworld.evaluation.ExamEvaluationService;
-import com.exammarker.helloworld.evalutation.dto.ExamEvaluationDto;
+import com.exammarker.helloworld.evaluation.dto.ExamEvaluationDto;
 import com.exammarker.helloworld.evalutation.dto.solution.TranscribedSolutionsDto;
 import com.exammarker.helloworld.evalutation.dto.studentpaper.TranscribedExamDto;
 import com.exammarker.helloworld.service.GradingService;

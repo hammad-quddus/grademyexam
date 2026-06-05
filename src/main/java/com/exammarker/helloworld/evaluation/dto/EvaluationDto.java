@@ -1,4 +1,4 @@
-package com.exammarker.helloworld.evalutation.dto;
+package com.exammarker.helloworld.evaluation.dto;
 
 import java.util.List;
 

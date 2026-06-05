@@ -3,8 +3,9 @@ package com.exammarker.helloworld.evaluation;
 import java.time.Instant;
 import java.util.List;
 
-import com.exammarker.helloworld.evalutation.dto.ExamEvaluationDto;
-import com.exammarker.helloworld.evalutation.dto.QuestionEvaluationDto;
+import com.exammarker.helloworld.evaluation.dto.ExamEvaluationDto;
+import com.exammarker.helloworld.evaluation.dto.ExamEvaluationSummaryDto;
+import com.exammarker.helloworld.evaluation.dto.QuestionEvaluationDto;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -44,4 +45,15 @@ public class ExamEvaluationMapper {
 
 		return entity;
 	}
+	
+	public static ExamEvaluationSummaryDto toSummaryDto(ExamEvaluationEntity e) {
+
+	    return new ExamEvaluationSummaryDto(
+	        e.getId(),
+	        e.getStudentName(),
+	        e.getCreatedAt()
+	    );
+	}
+	
+	
 }

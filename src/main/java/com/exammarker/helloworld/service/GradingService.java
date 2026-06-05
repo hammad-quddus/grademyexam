@@ -21,11 +21,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.MimeTypeUtils;
 import org.springframework.web.multipart.MultipartFile;
 
-import com.exammarker.helloworld.evalutation.dto.BandDto;
-import com.exammarker.helloworld.evalutation.dto.ConfidenceDto;
-import com.exammarker.helloworld.evalutation.dto.EvaluationDto;
-import com.exammarker.helloworld.evalutation.dto.ExamEvaluationDto;
-import com.exammarker.helloworld.evalutation.dto.QuestionEvaluationDto;
+import com.exammarker.helloworld.evaluation.dto.BandDto;
+import com.exammarker.helloworld.evaluation.dto.ConfidenceDto;
+import com.exammarker.helloworld.evaluation.dto.EvaluationDto;
+import com.exammarker.helloworld.evaluation.dto.ExamEvaluationDto;
+import com.exammarker.helloworld.evaluation.dto.QuestionEvaluationDto;
 import com.exammarker.helloworld.evalutation.dto.rubric.RubricReferenceDto;
 import com.exammarker.helloworld.evalutation.dto.solution.TranscribedSolutionQuestionDto;
 import com.exammarker.helloworld.evalutation.dto.solution.TranscribedSolutionsDto;

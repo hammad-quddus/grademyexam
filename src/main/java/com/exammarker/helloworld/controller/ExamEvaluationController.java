@@ -1,5 +1,6 @@
 package com.exammarker.helloworld.controller;
 
+import java.util.List;
 import java.util.Map;
 
 import org.springframework.http.MediaType;
@@ -12,7 +13,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.exammarker.helloworld.evaluation.ExamEvaluationService;
-import com.exammarker.helloworld.evalutation.dto.ExamEvaluationDto;
+import com.exammarker.helloworld.evaluation.dto.ExamEvaluationDto;
+import com.exammarker.helloworld.evaluation.dto.ExamEvaluationSummaryDto;
 import com.exammarker.helloworld.service.pdf.ExamPdfService;
 
 @RestController
@@ -55,6 +57,11 @@ public class ExamEvaluationController {
 
 		return ResponseEntity.ok().contentType(MediaType.APPLICATION_PDF)
 				.header("Content-Disposition", "attachment; filename=" + fileName).body(pdf);
+	}
+	
+	@GetMapping
+	public ResponseEntity<List<ExamEvaluationSummaryDto>> getAll() {
+	    return ResponseEntity.ok(examEvaluationService.getAllEvaluations());
 	}
 
 }

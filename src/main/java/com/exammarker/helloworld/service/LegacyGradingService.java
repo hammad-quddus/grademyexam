@@ -16,7 +16,7 @@ import org.springframework.core.io.Resource;
 import org.springframework.util.MimeTypeUtils;
 import org.springframework.web.multipart.MultipartFile;
 
-import com.exammarker.helloworld.evalutation.dto.QuestionEvaluationDto;
+import com.exammarker.helloworld.evaluation.dto.QuestionEvaluationDto;
 import com.exammarker.helloworld.evalutation.dto.rubric.RubricDto;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;

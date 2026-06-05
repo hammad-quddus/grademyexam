@@ -1,8 +1,11 @@
 package com.exammarker.helloworld.evaluation;
 
+import java.util.List;
+
 import org.springframework.stereotype.Service;
 
-import com.exammarker.helloworld.evalutation.dto.ExamEvaluationDto;
+import com.exammarker.helloworld.evaluation.dto.ExamEvaluationDto;
+import com.exammarker.helloworld.evaluation.dto.ExamEvaluationSummaryDto;
 
 @Service
 public class ExamEvaluationService {
@@ -38,4 +41,13 @@ public class ExamEvaluationService {
 
         return ExamEvaluationMapper.toDto(entity);
     }
+    
+    public List<ExamEvaluationSummaryDto> getAllEvaluations() {
+
+        return repository.findAllByOrderByCreatedAtDesc()
+                .stream()
+                .map(ExamEvaluationMapper::toSummaryDto)
+                .toList();
+    }
+    
 }

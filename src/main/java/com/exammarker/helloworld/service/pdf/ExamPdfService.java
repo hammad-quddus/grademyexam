@@ -7,8 +7,8 @@ import java.util.List;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.springframework.stereotype.Service;
 
-import com.exammarker.helloworld.evalutation.dto.ExamEvaluationDto;
-import com.exammarker.helloworld.evalutation.dto.QuestionEvaluationDto;
+import com.exammarker.helloworld.evaluation.dto.ExamEvaluationDto;
+import com.exammarker.helloworld.evaluation.dto.QuestionEvaluationDto;
 
 @Service
 public class ExamPdfService {
@@ -24,21 +24,21 @@ public class ExamPdfService {
 
             pdf.section("Student", dto.studentName());
             pdf.section("Subject", dto.subject());
-            pdf.section("Total Marks",
-                    dto.totalMarksAwarded() + " / " + dto.totalMaxMarks());
+            pdf.section("Total Marks", dto.totalMarksAwarded() + " / " + dto.totalMaxMarks());
 
             // ---------------- MARKS TABLE ----------------
             pdf.section("Marks Breakdown (Question-wise)", "");
 
             List<List<String>> table = new ArrayList<>();
 
-            table.add(List.of("Question", "Marks", "Max Marks"));
+            table.add(List.of("Question", "Marks", "Max Marks", "Band Range"));
 
             for (QuestionEvaluationDto q : dto.evaluatedQuestions()) {
                 table.add(List.of(
                         String.valueOf(q.questionId()),
                         String.valueOf(q.marksAwarded()),
-                        String.valueOf(q.maxMarks())
+                        String.valueOf(q.maxMarks()),
+                        q.rubricReference().band().min() + " - " + q.rubricReference().band().max()
                 ));
             }
 
