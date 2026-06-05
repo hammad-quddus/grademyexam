@@ -1,89 +1,111 @@
 package com.exammarker.helloworld.service.pdf;
 
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
-
-import org.apache.pdfbox.pdmodel.PDDocument;
-import org.apache.pdfbox.pdmodel.PDPage;
-import org.apache.pdfbox.pdmodel.PDPageContentStream;
+import org.apache.pdfbox.pdmodel.*;
+import org.apache.pdfbox.pdmodel.common.PDRectangle;
 import org.apache.pdfbox.pdmodel.font.PDType1Font;
 import org.apache.pdfbox.pdmodel.font.Standard14Fonts;
+import org.apache.pdfbox.pdmodel.PDPageContentStream;
+
+import java.io.IOException;
+import java.util.List;
 
 public class PdfLayoutEngine {
+
+    private static final PDType1Font FONT =
+            new PDType1Font(Standard14Fonts.FontName.HELVETICA);
+
+    private static final PDType1Font BOLD =
+            new PDType1Font(Standard14Fonts.FontName.HELVETICA_BOLD);
 
     private final PDDocument document;
 
     private PDPage page;
     private PDPageContentStream content;
 
-    private float y = 750;
-
+    private float y;
     private static final float LEFT = 50;
-    private static final float RIGHT = 550;
-    private static final float BOTTOM_LIMIT = 70;
-
-    private static final float LINE_GAP = 5;
-
-    private final PDType1Font font =
-            new PDType1Font(Standard14Fonts.FontName.HELVETICA);
+    private static final float RIGHT_MARGIN = 550;
+    private static final float TOP = 750;
 
     public PdfLayoutEngine(PDDocument document) throws IOException {
         this.document = document;
         newPage();
     }
 
-    // ---------------- PUBLIC API ----------------
-    
-    public void gap(float amount) {
-        y -= amount;
-    }
+    // ---------------- BASIC TEXT ----------------
 
     public void title(String text) throws IOException {
-        write(text, 16);
-        gap(15);
+        write(text, 18, BOLD);
+        gap(20);
     }
 
     public void section(String heading, String body) throws IOException {
-        write(heading, 12);
-        write(safe(body), 10);
+        write(heading, 12, BOLD);
+        write(body == null ? "" : body, 10, FONT);
         gap(10);
     }
 
     public void list(String heading, List<String> items) throws IOException {
-
         if (items == null || items.isEmpty()) return;
 
-        write(heading, 12);
+        write(heading, 12, BOLD);
+        for (String i : items) {
+            write("• " + i, 10, FONT);
+        }
+        gap(10);
+    }
 
-        for (String item : items) {
-            write("• " + safe(item), 10);
+    // ---------------- DIVIDER LINE ----------------
+
+    public void line() throws IOException {
+        checkPage(10);
+
+        content.setLineWidth(1f);
+        content.moveTo(LEFT, y);
+        content.lineTo(RIGHT_MARGIN, y);
+        content.stroke();
+
+        gap(15);
+    }
+
+    // ---------------- TABLE (simple) ----------------
+    // Each row = list of columns
+
+    public void table(List<List<String>> rows) throws IOException {
+        if (rows == null || rows.isEmpty()) return;
+
+        float rowHeight = 18;
+        float colWidth = 120;
+
+        for (List<String> row : rows) {
+            checkPage(rowHeight);
+
+            float x = LEFT;
+
+            for (String cell : row) {
+                content.beginText();
+                content.setFont(FONT, 9);
+                content.newLineAtOffset(x, y);
+                content.showText(cell == null ? "" : cell);
+                content.endText();
+
+                x += colWidth;
+            }
+
+            y -= rowHeight;
         }
 
         gap(10);
     }
 
-    // ✔ divider line between questions
-    public void line() throws IOException {
-
-        ensureSpace(15);
-
-        content.moveTo(LEFT, y);
-        content.lineTo(RIGHT, y);
-        content.stroke();
-
-        y -= 12;
-    }
-
     // ---------------- CORE WRITER ----------------
 
-    private void write(String text, float size) throws IOException {
+    private void write(String text, float size, PDType1Font font) throws IOException {
 
         List<String> lines = wrap(text, size);
 
         for (String line : lines) {
-
-            ensureSpace(size);
+            checkPage(size + 5);
 
             content.beginText();
             content.setFont(font, size);
@@ -91,57 +113,38 @@ public class PdfLayoutEngine {
             content.showText(line);
             content.endText();
 
-            y -= (size + LINE_GAP);
+            y -= size + 4;
         }
     }
 
-    // ---------------- PAGE SAFETY ----------------
+    private List<String> wrap(String text, float size) {
+        int chars = size >= 14 ? 60 : 90;
+        return List.of(text.replace("\n", " ")
+                .split("(?<=\\G.{" + chars + "})"));
+    }
 
-    private void ensureSpace(float size) throws IOException {
+    // ---------------- PAGE HANDLING ----------------
 
-        if (y < BOTTOM_LIMIT) {
+    private void checkPage(float needed) throws IOException {
+        if (y < 80) {
             content.close();
             newPage();
         }
     }
 
     private void newPage() throws IOException {
-
-        page = new PDPage();
+        page = new PDPage(PDRectangle.A4);
         document.addPage(page);
 
         content = new PDPageContentStream(document, page);
-
-        y = 750;
+        y = TOP;
     }
 
-    // ---------------- WRAPPING ----------------
-
-    private List<String> wrap(String text, float size) {
-
-        int charsPerLine = (size >= 14) ? 55 : 90;
-
-        String clean = safe(text).replace("\n", " ");
-
-        String[] split = clean.split("(?<=\\G.{" + charsPerLine + "})");
-
-        List<String> lines = new ArrayList<>();
-        for (String s : split) lines.add(s);
-
-        return lines;
+    private void gap(float amount) {
+        y -= amount;
     }
-
-    // ---------------- UTIL ----------------
-
-    private String safe(String s) {
-        return (s == null) ? "" : s;
-    }
-
-    // ---------------- CLOSE ----------------
 
     public void close() throws IOException {
-        if (content != null) {
-            content.close();
-        }
+        if (content != null) content.close();
     }
 }

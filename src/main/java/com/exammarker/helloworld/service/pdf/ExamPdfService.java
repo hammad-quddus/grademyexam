@@ -1,6 +1,8 @@
 package com.exammarker.helloworld.service.pdf;
 
 import java.io.ByteArrayOutputStream;
+import java.util.ArrayList;
+import java.util.List;
 
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.springframework.stereotype.Service;
@@ -11,45 +13,64 @@ import com.exammarker.helloworld.evalutation.dto.QuestionEvaluationDto;
 @Service
 public class ExamPdfService {
 
-	public byte[] generate(ExamEvaluationDto dto) {
+    public byte[] generate(ExamEvaluationDto dto) {
 
-		try (PDDocument document = new PDDocument(); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+        try (PDDocument document = new PDDocument();
+             ByteArrayOutputStream out = new ByteArrayOutputStream()) {
 
-			PdfLayoutEngine pdf = new PdfLayoutEngine(document);
+            PdfLayoutEngine pdf = new PdfLayoutEngine(document);
 
-			pdf.title("Exam Evaluation Report");
+            pdf.title("Exam Evaluation Report");
 
-			pdf.section("Student", dto.studentName());
-			pdf.section("Subject", dto.subject());
+            pdf.section("Student", dto.studentName());
+            pdf.section("Subject", dto.subject());
+            pdf.section("Total Marks",
+                    dto.totalMarksAwarded() + " / " + dto.totalMaxMarks());
 
-			pdf.section("Total Marks", dto.totalMarksAwarded() + " / " + dto.totalMaxMarks());
+            // ---------------- MARKS TABLE ----------------
+            pdf.section("Marks Breakdown (Question-wise)", "");
 
-			for (QuestionEvaluationDto q : dto.evaluatedQuestions()) {
+            List<List<String>> table = new ArrayList<>();
 
-				pdf.section("Question " + q.questionId(), q.questionText());
+            table.add(List.of("Question", "Marks", "Max Marks"));
 
-				pdf.section("Marks Awarded", String.valueOf(q.marksAwarded()) + " / " + q.maxMarks());
+            for (QuestionEvaluationDto q : dto.evaluatedQuestions()) {
+                table.add(List.of(
+                        String.valueOf(q.questionId()),
+                        String.valueOf(q.marksAwarded()),
+                        String.valueOf(q.maxMarks())
+                ));
+            }
 
-				pdf.section("Evaluation Summary", q.evaluationSummary());
+            pdf.table(table);
 
-				pdf.list("Coverage Gaps", q.coverageGaps());
+            pdf.line();
 
-				pdf.list("Factual Errors", q.factualErrors());
+            // ---------------- DETAILED BREAKDOWN ----------------
+            for (QuestionEvaluationDto q : dto.evaluatedQuestions()) {
 
-				pdf.section("Student Answer", q.studentAnswerTranscription());
-				
-				pdf.line();
-				
-			}
-			// IMPORTANT: flush all streams properly
-			pdf.close();
+                pdf.section("Question " + q.questionId(), q.questionText());
 
-			document.save(out);
+                pdf.section("Marks",
+                        q.marksAwarded() + " / " + q.maxMarks());
 
-			return out.toByteArray();
+                pdf.section("Evaluation Summary", q.evaluationSummary());
 
-		} catch (Exception e) {
-			throw new RuntimeException("PDF generation failed", e);
-		}
-	}
+                pdf.list("Coverage Gaps", q.coverageGaps());
+                pdf.list("Factual Errors", q.factualErrors());
+
+                pdf.section("Student Answer", q.studentAnswerTranscription());
+
+                pdf.line();
+            }
+
+            pdf.close();
+            document.save(out);
+
+            return out.toByteArray();
+
+        } catch (Exception e) {
+            throw new RuntimeException("PDF generation failed", e);
+        }
+    }
 }
