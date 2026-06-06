@@ -352,11 +352,14 @@ public class GradingService {
 		}
 
 		String rawJson = response.getResult().getOutput().getText();
-		log.info("====== Response from ai model for alignment step: ========");
-		log.info(rawJson);
+
 
 		BeanOutputConverter<TranscribedExamDto> converter = new BeanOutputConverter<>(TranscribedExamDto.class);
-		return converter.convert(rawJson);
+
+		TranscribedExamDto dto = converter.convert(rawJson);
+		log.info("====== Alignment step completed for {} ========", dto.studentName());
+
+		return dto;
 	}
 
 	/**
