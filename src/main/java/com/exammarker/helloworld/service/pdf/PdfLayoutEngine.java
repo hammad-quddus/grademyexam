@@ -2,20 +2,18 @@ package com.exammarker.helloworld.service.pdf;
 
 import org.apache.pdfbox.pdmodel.*;
 import org.apache.pdfbox.pdmodel.common.PDRectangle;
-import org.apache.pdfbox.pdmodel.font.PDType1Font;
-import org.apache.pdfbox.pdmodel.font.Standard14Fonts;
+import org.apache.pdfbox.pdmodel.font.PDFont;
+import org.apache.pdfbox.pdmodel.font.PDType0Font;
 import org.apache.pdfbox.pdmodel.PDPageContentStream;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.List;
 
 public class PdfLayoutEngine {
 
-    private static final PDType1Font FONT =
-            new PDType1Font(Standard14Fonts.FontName.HELVETICA);
-
-    private static final PDType1Font BOLD =
-            new PDType1Font(Standard14Fonts.FontName.HELVETICA_BOLD);
+    private final PDFont FONT;
+    private final PDFont ITALIC; // optional usage
 
     private final PDDocument document;
 
@@ -23,39 +21,59 @@ public class PdfLayoutEngine {
     private PDPageContentStream content;
 
     private float y;
+
     private static final float LEFT = 50;
     private static final float RIGHT_MARGIN = 550;
     private static final float TOP = 750;
 
     public PdfLayoutEngine(PDDocument document) throws IOException {
         this.document = document;
+
+        this.FONT = loadFont("/fonts/NotoSans-Bold.ttf");
+        this.ITALIC = loadFont("/fonts/NotoSans-Regular.ttf");
+
         newPage();
     }
 
-    // ---------------- BASIC TEXT ----------------
+    private PDFont loadFont(String path) throws IOException {
+        InputStream stream = PdfLayoutEngine.class.getResourceAsStream(path);
+
+        if (stream == null) {
+            // fallback to PDFBox built-in font so nothing crashes
+            return new org.apache.pdfbox.pdmodel.font.PDType1Font(
+                    org.apache.pdfbox.pdmodel.font.Standard14Fonts.FontName.HELVETICA
+            );
+        }
+
+        return PDType0Font.load(document, stream, true);
+    }
+
+    // ---------------- TEXT ----------------
 
     public void title(String text) throws IOException {
-        write(text, 18, BOLD);
+        write(text, 18, FONT);
         gap(20);
     }
 
     public void section(String heading, String body) throws IOException {
-        write(heading, 12, BOLD);
-        write(body == null ? "" : body, 10, FONT);
+        write(heading, 12, FONT);
+        write(body == null ? "" : sanitize(body), 10, FONT);
         gap(10);
     }
 
     public void list(String heading, List<String> items) throws IOException {
         if (items == null || items.isEmpty()) return;
 
-        write(heading, 12, BOLD);
+        write(heading, 12, FONT);
+
         for (String i : items) {
-            write("• " + i, 10, FONT);
+            write("• " + sanitize(i), 10, FONT);
         }
+
         gap(10);
     }
 
-    // ---------------- DIVIDER LINE ----------------
+    // ---------------- LINE ----------------
 
     public void line() throws IOException {
         checkPage(10);
@@ -68,8 +86,7 @@ public class PdfLayoutEngine {
         gap(15);
     }
 
-    // ---------------- TABLE (simple) ----------------
-    // Each row = list of columns
+    // ---------------- TABLE ----------------
 
     public void table(List<List<String>> rows) throws IOException {
         if (rows == null || rows.isEmpty()) return;
@@ -86,7 +103,7 @@ public class PdfLayoutEngine {
                 content.beginText();
                 content.setFont(FONT, 9);
                 content.newLineAtOffset(x, y);
-                content.showText(cell == null ? "" : cell);
+                content.showText(sanitize(cell == null ? "" : cell));
                 content.endText();
 
                 x += colWidth;
@@ -100,11 +117,8 @@ public class PdfLayoutEngine {
 
     // ---------------- CORE WRITER ----------------
 
-    private void write(String text, float size, PDType1Font font) throws IOException {
-
-        List<String> lines = wrap(text, size);
-
-        for (String line : lines) {
+    private void write(String text, float size, PDFont font) throws IOException {
+        for (String line : wrap(sanitize(text), size)) {
             checkPage(size + 5);
 
             content.beginText();
@@ -119,8 +133,28 @@ public class PdfLayoutEngine {
 
     private List<String> wrap(String text, float size) {
         int chars = size >= 14 ? 60 : 90;
-        return List.of(text.replace("\n", " ")
-                .split("(?<=\\G.{" + chars + "})"));
+
+        return List.of(
+                text.replace("\n", " ")
+                        .split("(?<=\\G.{" + chars + "})")
+        );
+    }
+
+    // ---------------- SANITIZE (IMPORTANT FIX) ----------------
+
+    private String sanitize(String text) {
+        if (text == null) return "";
+
+        return text
+                .replace("→", "->")
+                .replace("–", "-")
+                .replace("—", "-")
+                .replace("•", "-")
+                .replace("“", "\"")
+                .replace("”", "\"")
+                .replace("’", "'")
+                .replace("√", "sqrt")
+                .replace("×", "x");
     }
 
     // ---------------- PAGE HANDLING ----------------
@@ -140,7 +174,7 @@ public class PdfLayoutEngine {
         y = TOP;
     }
 
-    private void gap(float amount) {
+    public void gap(float amount) {
         y -= amount;
     }
 
