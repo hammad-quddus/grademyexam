@@ -40,32 +40,32 @@ public class ExamController {
     }
     
     
-    @PostMapping(value = "/transcribestudentpaper", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public TranscribedExamDto transcribeStudentpaper(
-
-    		@RequestPart(value = "studentpaper", required = true) List<MultipartFile> studentpaperImages
-
-    ) throws Exception {
-
-    	log.info("endpoint: transcribestudentpaper...");
- 
-    	return gradingService.transcribeAndSegmentPaper(studentpaperImages);
-
-    }
-    
-    
-    @PostMapping(value = "/transcribesolution", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public TranscribedSolutionsDto transcribeSolution(
-
-    		@RequestPart(value = "solution", required = true) List<MultipartFile> solutionImages
-
-    ) throws Exception {
-
-    	log.info("endpoint: transcribesolution...");
- 
-    	return gradingService.transcribeOfficialSolutions(solutionImages);
-
-    }
+//    @PostMapping(value = "/transcribestudentpaper", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+//    public TranscribedExamDto transcribeStudentpaper(
+//
+//    		@RequestPart(value = "studentpaper", required = true) List<MultipartFile> studentpaperImages
+//
+//    ) throws Exception {
+//
+//    	log.info("endpoint: transcribestudentpaper...");
+// 
+//    	return gradingService.transcribeAndSegmentPaper(studentpaperImages);
+//
+//    }
+//    
+//    
+//    @PostMapping(value = "/transcribesolution", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+//    public TranscribedSolutionsDto transcribeSolution(
+//
+//    		@RequestPart(value = "solution", required = true) List<MultipartFile> solutionImages
+//
+//    ) throws Exception {
+//
+//    	log.info("endpoint: transcribesolution...");
+// 
+//    	return gradingService.transcribeOfficialSolutions(solutionImages);
+//
+//    }
    
     
 //    @PostMapping(value = "/transcriberubric", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
@@ -98,24 +98,24 @@ public class ExamController {
 //   }    
     
     
-    @PostMapping(value = "/evaluatefullexam", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ExamEvaluationResponse evaluateFullExam(
-            @RequestPart(value = "paperImages", required = true) List<MultipartFile> paperImages,
-            @RequestPart(value = "rubricImages", required = true) List<MultipartFile> rubricImages,
-            @RequestPart(value = "solutionImages", required = true) List<MultipartFile> solutionImages
-    ) throws Exception {
-    	
-    	log.info("endpoint: evaluatefullexam...");
-    	log.info("total paperImages: " + paperImages.size());
-    	log.info("total rubricImages: " + rubricImages.size());
-    	log.info("total solutionImages: " + solutionImages.size());
-    	
-    	
-    	ExamEvaluationDto dto =  gradingService.evaluateEntireExamPipeline(paperImages, rubricImages, solutionImages);
-    	long id = examEvaluationService.saveEvaluation(dto);
-    	
-    	return new ExamEvaluationResponse(id, dto);
-   }        
+//    @PostMapping(value = "/evaluatefullexam", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+//    public ExamEvaluationResponse evaluateFullExam(
+//            @RequestPart(value = "paperImages", required = true) List<MultipartFile> paperImages,
+//            @RequestPart(value = "rubricImages", required = true) List<MultipartFile> rubricImages,
+//            @RequestPart(value = "solutionImages", required = true) List<MultipartFile> solutionImages
+//    ) throws Exception {
+//    	
+//    	log.info("endpoint: evaluatefullexam...");
+//    	log.info("total paperImages: " + paperImages.size());
+//    	log.info("total rubricImages: " + rubricImages.size());
+//    	log.info("total solutionImages: " + solutionImages.size());
+//    	
+//    	
+//    	ExamEvaluationDto dto =  gradingService.evaluateEntireExamPipeline(paperImages, rubricImages, solutionImages);
+//    	long id = examEvaluationService.createJobAndSaveEvaluations(dtos);
+//    	
+//    	return new ExamEvaluationResponse(id, dto);
+//   }        
     
 }
 

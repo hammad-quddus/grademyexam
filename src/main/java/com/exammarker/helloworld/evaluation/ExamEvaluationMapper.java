@@ -6,6 +6,7 @@ import java.util.List;
 import com.exammarker.helloworld.evaluation.dto.ExamEvaluationDto;
 import com.exammarker.helloworld.evaluation.dto.ExamEvaluationSummaryDto;
 import com.exammarker.helloworld.evaluation.dto.QuestionEvaluationDto;
+import com.exammarker.helloworld.jobs.JobEntity;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -30,20 +31,30 @@ public class ExamEvaluationMapper {
 		}
 	}
 
-	public static ExamEvaluationEntity toEntity(ExamEvaluationDto dto) {
+	public static ExamEvaluationEntity toEntity(
+	        ExamEvaluationDto dto,
+	        JobEntity job
+	) {
 
-		String questionsJson;
-		try {
-			questionsJson = mapper.writeValueAsString(dto.evaluatedQuestions());
-		} catch (Exception e) {
-			throw new RuntimeException(e);
-		}
+	    String questionsJson;
+	    try {
+	        questionsJson = mapper.writeValueAsString(dto.evaluatedQuestions());
+	    } catch (Exception e) {
+	        throw new RuntimeException(e);
+	    }
 
-		ExamEvaluationEntity entity = new ExamEvaluationEntity(dto.studentName(), dto.studentId(), dto.subject(),
-				dto.classAndSection(), dto.date(), dto.totalMaxMarks(), dto.totalMarksAwarded(), questionsJson,
-				Instant.now());
-
-		return entity;
+	    return new ExamEvaluationEntity(
+	            job,
+	            dto.studentName(),
+	            dto.studentId(),
+	            dto.subject(),
+	            dto.classAndSection(),
+	            dto.date(),
+	            dto.totalMaxMarks(),
+	            dto.totalMarksAwarded(),
+	            questionsJson,
+	            Instant.now()
+	    );
 	}
 	
 	public static ExamEvaluationSummaryDto toSummaryDto(ExamEvaluationEntity e) {

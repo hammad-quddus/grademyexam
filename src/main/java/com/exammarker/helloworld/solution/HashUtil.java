@@ -8,45 +8,29 @@ import java.util.List;
 
 public class HashUtil {
 
-    public static String computeHash(List<MultipartFile> files) {
-        try {
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+	public static String computeHash(byte[] fileBytes) {
+	    try {
+	        MessageDigest digest = MessageDigest.getInstance("SHA-256");
 
-            // Step 1: normalize order (VERY important)
-            List<byte[]> fileBytes = files.stream()
-                    .map(HashUtil::readBytes)
-                    .toList();
+	        byte[] hashBytes = digest.digest(fileBytes);
 
-            // Step 2: sort to ensure order independence
-            fileBytes = fileBytes.stream()
-                    .sorted(Arrays::compare)
-                    .toList();
+	        StringBuilder sb = new StringBuilder();
+	        for (byte b : hashBytes) {
+	            sb.append(String.format("%02x", b));
+	        }
 
-            // Step 3: feed into digest
-            for (byte[] bytes : fileBytes) {
-                digest.update(bytes);
-            }
+	        return sb.toString();
 
-            byte[] hashBytes = digest.digest();
+	    } catch (Exception e) {
+	        throw new RuntimeException("Failed to compute hash", e);
+	    }
+	}
 
-            // Step 4: convert to hex string
-            StringBuilder sb = new StringBuilder();
-            for (byte b : hashBytes) {
-                sb.append(String.format("%02x", b));
-            }
-
-            return sb.toString();
-
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to compute hash", e);
-        }
-    }
-
-    private static byte[] readBytes(MultipartFile file) {
-        try (InputStream is = file.getInputStream()) {
-            return is.readAllBytes();
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to read file", e);
-        }
-    }
+//    private static byte[] readBytes(MultipartFile file) {
+//        try (InputStream is = file.getInputStream()) {
+//            return is.readAllBytes();
+//        } catch (Exception e) {
+//            throw new RuntimeException("Failed to read file", e);
+//        }
+//    }
 }

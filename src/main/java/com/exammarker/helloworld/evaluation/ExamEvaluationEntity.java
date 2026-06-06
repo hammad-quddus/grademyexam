@@ -2,12 +2,9 @@ package com.exammarker.helloworld.evaluation;
 
 import java.time.Instant;
 
-import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.Lob;
-import jakarta.persistence.Table;
+import com.exammarker.helloworld.jobs.JobEntity;
+
+import jakarta.persistence.*;
 
 @Entity
 @Table(name = "exam_evaluation")
@@ -16,6 +13,12 @@ public class ExamEvaluationEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "job_id", nullable = false)
+    private JobEntity job;
+
 
     private String studentName;
     private String studentId;
@@ -30,10 +33,13 @@ public class ExamEvaluationEntity {
     private String evaluatedQuestionsJson;
 
     private Instant createdAt;
-    
+
+
     protected ExamEvaluationEntity() {}
-    
+
+
     public ExamEvaluationEntity(
+            JobEntity job,
             String studentName,
             String studentId,
             String subject,
@@ -44,6 +50,7 @@ public class ExamEvaluationEntity {
             String evaluatedQuestionsJson,
             Instant createdAt
     ) {
+        this.job = job;
         this.studentName = studentName;
         this.studentId = studentId;
         this.subject = subject;
@@ -53,6 +60,16 @@ public class ExamEvaluationEntity {
         this.totalMarksAwarded = totalMarksAwarded;
         this.evaluatedQuestionsJson = evaluatedQuestionsJson;
         this.createdAt = createdAt;
+    }
+
+
+    public JobEntity getJob() {
+        return job;
+    }
+
+
+    public void setJob(JobEntity job) {
+        this.job = job;
     }
 
     public String getStudentName() {

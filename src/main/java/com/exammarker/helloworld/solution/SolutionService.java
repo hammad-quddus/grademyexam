@@ -18,13 +18,13 @@ public class SolutionService {
 
     public SolutionExtractionEntity save(
             String hash,
-            List<String> filenames,
+ //           List<String> filenames,
             String json
     ) {
         SolutionExtractionEntity entity =
                 new SolutionExtractionEntity(
                         hash,
-                        filenames,
+//                        filenames,
                         Instant.now(),
                         json
                 );
@@ -32,17 +32,17 @@ public class SolutionService {
         return repository.save(entity);
     }
     
-    public SolutionExtractionEntity save(List<MultipartFile> files, String json) {
-        String hash = HashUtil.computeHash(files);
+    public SolutionExtractionEntity save(byte[] filebytes, String json) {
+        String hash = HashUtil.computeHash(filebytes);
 
-        List<String> filenames = files.stream()
-                .map(MultipartFile::getOriginalFilename)
-                .toList();
+//        List<String> filenames = filebytes.stream()
+//                .map(MultipartFile::getOriginalFilename)
+//                .toList();
 
         return repository.findById(hash)
                 .orElseGet(() -> save(
                         hash,
-                        filenames,
+//                        filenames,
                         json
                 ));
     }
@@ -51,8 +51,8 @@ public class SolutionService {
         return repository.findById(hash);
     }
 
-    public Optional<SolutionExtractionEntity> findByFiles(List<MultipartFile> files) {
-    	String hash = HashUtil.computeHash(files);
+    public Optional<SolutionExtractionEntity> findByFiles(byte[] solutionBytes) {
+    	String hash = HashUtil.computeHash(solutionBytes);
         return repository.findById(hash);
     }
 

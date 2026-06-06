@@ -43,7 +43,7 @@ public class GradingService {
 
 	private final ChatModel chatModel;
 
-	private final PdfAssemblyService pdfAssemblyService;
+//	private final PdfAssemblyService pdfAssemblyService;
 
 	private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -51,10 +51,11 @@ public class GradingService {
 	
 	private final SolutionService solutionService;
 
-	public GradingService(ChatModel chatModel, PdfAssemblyService pdfAssemblyService,
+	public GradingService(ChatModel chatModel, 
+//			PdfAssemblyService pdfAssemblyService,
 			TaskExecutor taskExecutor, SolutionService solutionService) {
 		this.chatModel = chatModel;
-		this.pdfAssemblyService = pdfAssemblyService;
+//		this.pdfAssemblyService = pdfAssemblyService;
 		this.taskExecutor = taskExecutor;
 		this.solutionService = solutionService;
 		this.objectMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
@@ -64,9 +65,9 @@ public class GradingService {
 	/**
 	 * Phase 1b: Transcribes and structures out-of-order official exam solutions and marking criteria.
 	 */
-	public TranscribedSolutionsDto transcribeOfficialSolutions(List<MultipartFile> solutionImages) throws Exception {
+	public TranscribedSolutionsDto transcribeOfficialSolutions(byte[] solutionBytes) throws Exception {
 		
-		Optional<SolutionExtractionEntity> solutionExtractionEntity = solutionService.findByFiles(solutionImages);
+		Optional<SolutionExtractionEntity> solutionExtractionEntity = solutionService.findByFiles(solutionBytes);
 		if(solutionExtractionEntity.isPresent()) {
 			log.info("Entry found in cache for files: {}", solutionExtractionEntity.get().getDocumentHash());
 			
@@ -77,8 +78,8 @@ public class GradingService {
 		
 		log.info("Cache miss for solutions document. Initiating AI OCR transcription...");
 		
-		byte[] solutionPdfBytes = pdfAssemblyService.imagesToPdf(solutionImages);
-		Resource solutionsPdf = new ByteArrayResource(solutionPdfBytes);
+
+		Resource solutionsPdf = new ByteArrayResource(solutionBytes);
 
 		SystemMessage systemMessage = new SystemMessage(
 				"""
@@ -126,8 +127,9 @@ public class GradingService {
 		BeanOutputConverter<TranscribedSolutionsDto> converter = new BeanOutputConverter<>(TranscribedSolutionsDto.class);
 		TranscribedSolutionsDto res = converter.convert(rawJson);
 		
-		solutionService.save(solutionImages, rawJson);
+		solutionService.save(solutionBytes, rawJson);
 		
+		log.info("======== Solution Extraction Completed ==========");
 		
 		return res;
 	}
@@ -135,9 +137,9 @@ public class GradingService {
 	/**
 	 * Phase 1a: Transcribes and segments handwritten student exam pages into structured question-answer pairs.
 	 */
-	public TranscribedExamDto transcribeAndSegmentPaper(List<MultipartFile> paperImages) throws Exception {
-		byte[] paperPdfBytes = pdfAssemblyService.imagesToPdf(paperImages);
-		Resource studentWorkPdf = new ByteArrayResource(paperPdfBytes);
+	public TranscribedExamDto transcribeAndSegmentPaper(byte[] paperBytes) throws Exception {
+
+		Resource studentWorkPdf = new ByteArrayResource(paperBytes);
 
 		SystemMessage systemMessage = new SystemMessage(
 				"""
@@ -181,11 +183,13 @@ public class GradingService {
 		ChatResponse response = chatModel.call(prompt);
 		String rawJson = response.getResult().getOutput().getText();
 
-		log.info("====== Response from ai model for studentpaper transcription: ========");
-		log.info(rawJson);
-
 		BeanOutputConverter<TranscribedExamDto> converter = new BeanOutputConverter<>(TranscribedExamDto.class);
-		return converter.convert(rawJson);
+		TranscribedExamDto dto = converter.convert(rawJson);
+		
+		log.info("======  studentpaper transcription completed for: {} ========", dto.studentName());
+
+
+		return dto;
 	}
 
 	/**
@@ -360,16 +364,16 @@ public class GradingService {
 	 * Backed by a concurrent Fork-Join-Fork alignment model using TaskExecutor.
 	 */
 	public ExamEvaluationDto evaluateEntireExamPipeline(
-			List<MultipartFile> paperImages,
-			List<MultipartFile> rubricImages, 
-			List<MultipartFile> solutionImages) throws Exception {
+			byte[] paperBytes,
+			byte[] rubricBytes, 
+			byte[] solutionBytes) throws Exception {
 
 		log.info("Starting Concurrency Phase 1: Forking Student Paper & Solution Transcriptions...");
 
 		// FORK Phase 1: Run both transcription tasks concurrently on separate threads
 		CompletableFuture<TranscribedExamDto> transcribeAndSegmentPaperFuture = CompletableFuture.supplyAsync(() -> {
 			try {
-				return transcribeAndSegmentPaper(paperImages);
+				return transcribeAndSegmentPaper(paperBytes);
 			} catch (Exception e) {
 				throw new RuntimeException("Failed to transcribe student paper", e);
 			}
@@ -377,7 +381,7 @@ public class GradingService {
 
 		CompletableFuture<TranscribedSolutionsDto> transcribeOfficialSolutionsFuture = CompletableFuture.supplyAsync(() -> {
 			try {
-				return transcribeOfficialSolutions(solutionImages);
+				return transcribeOfficialSolutions(solutionBytes);
 			} catch (Exception e) {
 				throw new RuntimeException("Failed to transcribe official solutions", e);
 			}
@@ -400,8 +404,7 @@ public class GradingService {
 		TranscribedExamDto alignedTranscription = alignTranscriptionsWithAI(transcription, officialSolutions);
 
 		// Compile rubric into digital resources (rubrics are short and global, so we can keep as PDF)
-		byte[] rubricPdfBytes = pdfAssemblyService.imagesToPdf(rubricImages);
-		Resource rubricPdf = new ByteArrayResource(rubricPdfBytes);
+		Resource rubricPdf = new ByteArrayResource(rubricBytes);
 
 		log.info("Starting Concurrency Phase 2: Forking Evaluations for all {} matched questions...", alignedTranscription.questions().size());
 

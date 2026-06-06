@@ -1,5 +1,8 @@
 package com.exammarker.helloworld;
 
+import java.util.concurrent.Executor;
+import java.util.concurrent.Executors;
+
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.task.TaskExecutor;
@@ -20,5 +23,10 @@ public class AsyncConfig {
 
         executor.initialize();
         return executor;
+    }
+    
+    @Bean
+    public Executor evaluationExecutor() {
+        return Executors.newFixedThreadPool(4);
     }
 }

@@ -1,0 +1,16 @@
+gcloud builds submit --tag gcr.io/project-67143b4f-6a2b-42be-9ab/examevaluator && gcloud run deploy examevaluator --image gcr.io/project-67143b4f-6a2b-42be-9ab/examevaluator --platform managed --region us-central1 --memory 4Gi --timeout 600 --use-http2
+
+
+
+# 1. Compile your new code changes
+npm run build
+
+# 2. Sync the contents of dist directly to the root of your bucket
+gsutil -m rsync -R dist/ gs://maasimarker
+
+
+
+Service [examevaluator] revision [examevaluator-00019-4gr] has been deployed and is serving 100 percent of traffic.
+Service URL: https://examevaluator-238235926087.us-central1.run.app
+
+https://storage.googleapis.com/maasimarker/index.html

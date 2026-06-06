@@ -12,13 +12,12 @@ public class SolutionExtractionEntity {
     @Column(name = "document_hash", nullable = false, updatable = false)
     private String documentHash;
 
-    @ElementCollection
-    @CollectionTable(
-            name = "solution_extraction_files",
-            joinColumns = @JoinColumn(name = "document_hash")
-    )
-    @Column(name = "filename")
-    private List<String> originalFilenames;
+//    @ElementCollection
+//    @CollectionTable(
+//            name = "solution_extraction_files",
+//            joinColumns = @JoinColumn(name = "document_hash")
+//    )
+
 
     @Column(name = "extracted_at", nullable = false)
     private Instant extractedAt;
@@ -33,12 +32,11 @@ public class SolutionExtractionEntity {
 
     public SolutionExtractionEntity(
             String documentHash,
-            List<String> originalFilenames,
+
             Instant extractedAt,
             String extractionJson
     ) {
         this.documentHash = documentHash;
-        this.originalFilenames = originalFilenames;
         this.extractedAt = extractedAt;
         this.extractionJson = extractionJson;
     }
@@ -47,9 +45,6 @@ public class SolutionExtractionEntity {
         return documentHash;
     }
 
-    public List<String> getOriginalFilenames() {
-        return originalFilenames;
-    }
 
     public Instant getExtractedAt() {
         return extractedAt;
@@ -60,10 +55,6 @@ public class SolutionExtractionEntity {
     }
 
     // Optional setters (keep or remove depending on immutability preference)
-
-    public void setOriginalFilenames(List<String> originalFilenames) {
-        this.originalFilenames = originalFilenames;
-    }
 
     public void setExtractedAt(Instant extractedAt) {
         this.extractedAt = extractedAt;
