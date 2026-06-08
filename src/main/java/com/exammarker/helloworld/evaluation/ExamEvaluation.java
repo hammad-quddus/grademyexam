@@ -2,13 +2,13 @@ package com.exammarker.helloworld.evaluation;
 
 import java.time.Instant;
 
-import com.exammarker.helloworld.jobs.JobEntity;
+import com.exammarker.helloworld.jobs.Job;
 
 import jakarta.persistence.*;
 
 @Entity
 @Table(name = "exam_evaluation")
-public class ExamEvaluationEntity {
+public class ExamEvaluation {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -17,7 +17,7 @@ public class ExamEvaluationEntity {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "job_id", nullable = false)
-    private JobEntity job;
+    private Job job;
 
 
     private String studentName;
@@ -35,11 +35,11 @@ public class ExamEvaluationEntity {
     private Instant createdAt;
 
 
-    protected ExamEvaluationEntity() {}
+    protected ExamEvaluation() {}
 
 
-    public ExamEvaluationEntity(
-            JobEntity job,
+    public ExamEvaluation(
+            Job job,
             String studentName,
             String studentId,
             String subject,
@@ -63,12 +63,12 @@ public class ExamEvaluationEntity {
     }
 
 
-    public JobEntity getJob() {
+    public Job getJob() {
         return job;
     }
 
 
-    public void setJob(JobEntity job) {
+    public void setJob(Job job) {
         this.job = job;
     }
 

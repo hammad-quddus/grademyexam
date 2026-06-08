@@ -7,7 +7,7 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 public interface ExamEvaluationRepository
-        extends JpaRepository<ExamEvaluationEntity, Long> {
+        extends JpaRepository<ExamEvaluation, Long> {
 	
-	List<ExamEvaluationEntity> findAllByOrderByCreatedAtDesc();
+	List<ExamEvaluation> findAllByOrderByCreatedAtDesc();
 }

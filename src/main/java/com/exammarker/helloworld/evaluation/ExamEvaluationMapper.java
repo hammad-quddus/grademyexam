@@ -6,7 +6,7 @@ import java.util.List;
 import com.exammarker.helloworld.evaluation.dto.ExamEvaluationDto;
 import com.exammarker.helloworld.evaluation.dto.ExamEvaluationSummaryDto;
 import com.exammarker.helloworld.evaluation.dto.QuestionEvaluationDto;
-import com.exammarker.helloworld.jobs.JobEntity;
+import com.exammarker.helloworld.jobs.Job;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -14,7 +14,7 @@ public class ExamEvaluationMapper {
 
 	private static final ObjectMapper mapper = new ObjectMapper();
 
-	public static ExamEvaluationDto toDto(ExamEvaluationEntity e) {
+	public static ExamEvaluationDto toDto(ExamEvaluation e) {
 
 		List<QuestionEvaluationDto> questions = parseQuestions(e.getEvaluatedQuestionsJson());
 
@@ -31,9 +31,9 @@ public class ExamEvaluationMapper {
 		}
 	}
 
-	public static ExamEvaluationEntity toEntity(
+	public static ExamEvaluation toEntity(
 	        ExamEvaluationDto dto,
-	        JobEntity job
+	        Job job
 	) {
 
 	    String questionsJson;
@@ -43,7 +43,7 @@ public class ExamEvaluationMapper {
 	        throw new RuntimeException(e);
 	    }
 
-	    return new ExamEvaluationEntity(
+	    return new ExamEvaluation(
 	            job,
 	            dto.studentName(),
 	            dto.studentId(),
@@ -57,7 +57,7 @@ public class ExamEvaluationMapper {
 	    );
 	}
 	
-	public static ExamEvaluationSummaryDto toSummaryDto(ExamEvaluationEntity e) {
+	public static ExamEvaluationSummaryDto toSummaryDto(ExamEvaluation e) {
 
 	    return new ExamEvaluationSummaryDto(
 	        e.getId(),

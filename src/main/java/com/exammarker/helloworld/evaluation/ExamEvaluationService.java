@@ -11,10 +11,13 @@ import org.springframework.web.multipart.MultipartFile;
 
 import com.exammarker.helloworld.evaluation.dto.ExamEvaluationDto;
 import com.exammarker.helloworld.evaluation.dto.ExamEvaluationSummaryDto;
-import com.exammarker.helloworld.jobs.JobEntity;
+import com.exammarker.helloworld.jobs.Job;
 import com.exammarker.helloworld.jobs.JobRepository;
+import com.exammarker.helloworld.jobs.JobService;
 import com.exammarker.helloworld.jobs.JobStatus;
 import com.exammarker.helloworld.service.GradingService;
+
+import jakarta.transaction.Transactional;
 
 @Service
 public class ExamEvaluationService {
@@ -23,17 +26,20 @@ public class ExamEvaluationService {
     private final JobRepository jobRepository;
     private final Executor evaluationExecutor;
     private final GradingService gradingService;
+    private final JobService jobService;
 
     public ExamEvaluationService(
             ExamEvaluationRepository repository,
             JobRepository jobRepository,
             Executor evaluationExecutor,
-            GradingService gradingService
+            GradingService gradingService,
+            JobService jobService
     ) {
         this.repository = repository;
         this.jobRepository = jobRepository;
         this.evaluationExecutor = evaluationExecutor;
         this.gradingService = gradingService;
+        this.jobService = jobService;
     }
 
 //    public Long saveEvaluation(ExamEvaluationEntity entity) {
@@ -55,12 +61,12 @@ public class ExamEvaluationService {
 
     public Long createJobAndSaveEvaluations(List<ExamEvaluationDto> dtos) {
 
-        JobEntity job = new JobEntity();
+        Job job = new Job();
         job = jobRepository.save(job);
 
         for (ExamEvaluationDto dto : dtos) {
 
-            ExamEvaluationEntity entity =
+            ExamEvaluation entity =
                     ExamEvaluationMapper.toEntity(dto, job);
 
             repository.save(entity);
@@ -75,7 +81,7 @@ public class ExamEvaluationService {
     
     public ExamEvaluationDto getById(Long id) {
 
-        ExamEvaluationEntity entity = repository.findById(id)
+        ExamEvaluation entity = repository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Evaluation not found: " + id));
 
         return ExamEvaluationMapper.toDto(entity);
@@ -89,26 +95,31 @@ public class ExamEvaluationService {
                 .toList();
     }
     
+ 
+    @Transactional
     public Long startJob(
             List<MultipartFile> papers,
             List<MultipartFile> rubric,
             List<MultipartFile> solution
     ) throws IOException {
 
-        JobEntity job = new JobEntity();
+        Job job = new Job();
         job.setStatus(JobStatus.ACCEPTED);
         job = jobRepository.save(job);
 
         job.setStatus(JobStatus.PROCESSING);
         jobRepository.save(job);
 
+        // upload paperfiles
+        jobService.uploadPapers(job, papers);
+        
         processAsync(job, papers, rubric, solution);
 
         return job.getId();
     }
     
     private void processAsync(
-            JobEntity job,
+            Job job,
             List<MultipartFile> papers,
             List<MultipartFile> rubric,
             List<MultipartFile> solution
@@ -156,7 +167,7 @@ public class ExamEvaluationService {
     }
  
     private void processPaper(
-            JobEntity job,
+            Job job,
             byte[] paper,
             byte[] rubric,
             byte[] solution
@@ -170,7 +181,7 @@ public class ExamEvaluationService {
                             solution
                     );
 
-            ExamEvaluationEntity entity =
+            ExamEvaluation entity =
                     ExamEvaluationMapper.toEntity(dto, job);
 
             repository.save(entity);
