@@ -43,15 +43,15 @@ public class ExamEvaluationController {
 		this.gradingService = gradingService;
 	}
 
-	@PostMapping
-	public ResponseEntity<Map<String, Long>> create(@RequestBody List<ExamEvaluationDto> dtos) {
-
-		Long id = examEvaluationService.createJobAndSaveEvaluations(dtos);
-
-		return ResponseEntity
-				.accepted()
-				.body(Map.of("jobId", id));
-	}
+//	@PostMapping
+//	public ResponseEntity<Map<String, Long>> create(@RequestBody List<ExamEvaluationDto> dtos) {
+//
+//		Long id = examEvaluationService.createJobAndSaveEvaluations(dtos);
+//
+//		return ResponseEntity
+//				.accepted()
+//				.body(Map.of("jobId", id));
+//	}
 	
 
 	@GetMapping("/{id}")
@@ -119,18 +119,18 @@ public class ExamEvaluationController {
 	}
 	
 	
-	@PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-	public ResponseEntity<Map<String, Long>> evaluate(
-	        @RequestPart("paperImages") List<MultipartFile> papers,
-	        @RequestPart("rubricImages") List<MultipartFile> rubric,
-	        @RequestPart("solutionImages") List<MultipartFile> solution
-	) throws IOException {
-
-	    Long jobId = examEvaluationService.startJob(papers, rubric, solution);
-
-	    return ResponseEntity
-	            .accepted()
-	            .body(Map.of("jobId", jobId));
-	}
+//	@PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+//	public ResponseEntity<Map<String, Long>> evaluate(
+//	        @RequestPart("paperImages") List<MultipartFile> papers,
+//	        @RequestPart("rubricImages") List<MultipartFile> rubric,
+//	        @RequestPart("solutionImages") List<MultipartFile> solution
+//	) throws IOException {
+//
+//	    Long jobId = examEvaluationService.startJob(papers, rubric, solution);
+//
+//	    return ResponseEntity
+//	            .accepted()
+//	            .body(Map.of("jobId", jobId));
+//	}
 
 }
