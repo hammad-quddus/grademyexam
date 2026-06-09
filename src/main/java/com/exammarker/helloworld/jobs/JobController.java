@@ -25,6 +25,7 @@ public class JobController {
 		this.jobService = jobService;
 	}
 
+    
 
 	@GetMapping("/{jobId}/papers")
     public List<PaperFileDto> getPapers(
@@ -32,6 +33,11 @@ public class JobController {
 
         return jobService.getPapers(jobId);
     }
+	
+	@GetMapping("/{id}")
+	public JobDetailDto getJob(@PathVariable Long id) {
+	    return jobService.getJob(id);
+	}
 	
 	@PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
 	public ResponseEntity<Map<String, Long>> evaluate(

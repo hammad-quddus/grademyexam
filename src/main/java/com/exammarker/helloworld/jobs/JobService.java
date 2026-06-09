@@ -138,6 +138,23 @@ public class JobService {
     }
     
 
-    
+    public JobDetailDto getJob(Long jobId) {
+
+        Job job = jobRepository.findById(jobId)
+                .orElseThrow(() -> new RuntimeException("Job not found"));
+
+        List<PaperFileDto> papers = paperFileRepository.findByJobId(jobId)
+                .stream()
+                .map(PaperFileDto::from)
+                .toList();
+
+        JobDetailDto dto = new JobDetailDto();
+        dto.setId(job.getId());
+        dto.setStatus(job.getStatus());
+        dto.setCreatedAt(job.getCreatedAt());
+        dto.setPapers(papers);
+
+        return dto;
+    }    
     
 }
