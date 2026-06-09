@@ -41,9 +41,9 @@ public class JobController {
 	
 	@PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
 	public ResponseEntity<Map<String, Long>> evaluate(
-	        @RequestPart("paperImages") List<MultipartFile> papers,
-	        @RequestPart("rubricImages") List<MultipartFile> rubric,
-	        @RequestPart("solutionImages") List<MultipartFile> solution
+	        @RequestPart("papers") List<MultipartFile> papers,
+	        @RequestPart("rubric") List<MultipartFile> rubric,
+	        @RequestPart("solution") List<MultipartFile> solution
 	) throws IOException {
 
 	    Long jobId = jobService.startJob(papers, rubric, solution);
