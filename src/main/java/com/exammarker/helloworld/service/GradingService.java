@@ -16,7 +16,7 @@ import org.springframework.ai.content.Media;
 import org.springframework.ai.converter.BeanOutputConverter;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.core.io.Resource;
-import org.springframework.core.task.TaskExecutor;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.util.MimeTypeUtils;
 import org.springframework.web.multipart.MultipartFile;
@@ -43,20 +43,12 @@ public class GradingService {
 
 	private final ChatModel chatModel;
 
-//	private final PdfAssemblyService pdfAssemblyService;
-
 	private final ObjectMapper objectMapper = new ObjectMapper();
-
-	private final TaskExecutor taskExecutor;
 	
 	private final SolutionService solutionService;
 
-	public GradingService(ChatModel chatModel, 
-//			PdfAssemblyService pdfAssemblyService,
-			TaskExecutor taskExecutor, SolutionService solutionService) {
+	public GradingService(ChatModel chatModel, SolutionService solutionService) {
 		this.chatModel = chatModel;
-//		this.pdfAssemblyService = pdfAssemblyService;
-		this.taskExecutor = taskExecutor;
 		this.solutionService = solutionService;
 		this.objectMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 	}
@@ -98,7 +90,18 @@ public class GradingService {
 				   - maxMarks: Total marks assigned (e.g. 10, 4), parsed from brackets or descriptors.
 				   - officialSolutionKeyPoints: Verbatim expected facts, events, historical figures, verses, or points.
 				   - markingGuidelines: The guidance, instructions, or grading criteria given to examiners for this question.
-				4. Return ONLY valid JSON matching the schema below. Do not wrap in markdown or backticks.
+				4. Return ONLY valid JSON matching the schema below. Do not wrap in markdown or backticks. Do not use parentheses unless inside JSON strings.
+				
+				5. officialSolutionKeyPoints:
+					- MUST be a JSON array of pure strings only
+					- Each entry must NOT contain parentheses unless inside normal text
+					- DO NOT use bullet points, dashes, or numbered lists
+					- Example: ["Define force", "Apply Newton's second law"]
+
+				6. STRICT OUTPUT RULE:
+					- Never use "-" or "•"
+					- Never output "(" or ")" as structural markers
+					- All lists MUST be JSON arrays only
 
 				JSON schema:
 				{
@@ -124,16 +127,41 @@ public class GradingService {
 		ChatResponse response = chatModel.call(prompt);
 		String rawJson = response.getResult().getOutput().getText();
 
-		BeanOutputConverter<TranscribedSolutionsDto> converter = new BeanOutputConverter<>(TranscribedSolutionsDto.class);
-		TranscribedSolutionsDto res = converter.convert(rawJson);
+		rawJson = extractJsonBlock(rawJson);
 		
-		solutionService.save(solutionBytes, rawJson);
+		BeanOutputConverter<TranscribedSolutionsDto> converter = new BeanOutputConverter<>(TranscribedSolutionsDto.class);
+		TranscribedSolutionsDto res;
+		try {
+			res = converter.convert(rawJson);
+		} catch (Exception e) {
+			log.error("RAW OUTPUT: " + rawJson);
+			throw e;
+		}
+		
+		try {
+			solutionService.save(solutionBytes, rawJson);
+		} catch (DataIntegrityViolationException e) {
+		    log.info("Solution already cached, skipping insert");
+		}
 		
 		log.info("======== Solution Extraction Completed ==========");
+		log.info(rawJson);
 		
 		return res;
 	}
 
+	
+	private String extractJsonBlock(String text) {
+	    int start = text.indexOf("{");
+	    int end = text.lastIndexOf("}");
+
+	    if (start == -1 || end == -1 || end <= start) {
+	        throw new RuntimeException("No valid JSON found in LLM output:\n" + text);
+	    }
+
+	    return text.substring(start, end + 1);
+	}
+	
 	/**
 	 * Phase 1a: Transcribes and segments handwritten student exam pages into structured question-answer pairs.
 	 */
@@ -217,6 +245,9 @@ public class GradingService {
 				Rules:
 				- Grade strictly on evidence found in the transcribed text. Do not hallucinate or invent answers.
 				- Return ONLY valid JSON matching the schema below.
+				- **STRICT JSON ESCAPING RULE**: 
+				  - Every value must be a valid JSON string.
+				  - If you use double quotes INSIDE any JSON string (for example, quoting a student's answer or a Quranic verse), you MUST escape them with a backslash (e.g., \\"quote\\") or use single quotes ('quote') instead. Failing to do so will break parsing.
 
 				JSON schema:
 				{
@@ -276,8 +307,18 @@ public class GradingService {
 		ChatResponse response = chatModel.call(prompt);
 		String rawJson = response.getResult().getOutput().getText();
 
+		rawJson = extractJsonBlock(rawJson);
+
 		BeanOutputConverter<QuestionEvaluationDto> converter = new BeanOutputConverter<>(QuestionEvaluationDto.class);
-		return converter.convert(rawJson);
+		QuestionEvaluationDto parsedDto;
+		try {
+			parsedDto = converter.convert(rawJson);
+		} catch (Exception e) {
+			log.error("COULD NOT PARSE SINGLE QUESTION EVALUATION JSON. RAW OUTPUT: {}", rawJson);
+			throw e;
+		}
+
+		return parsedDto;
 	}
 
 	/**
@@ -363,38 +404,19 @@ public class GradingService {
 	}
 
 	/**
-	 * Orchestrates the full grading pipeline for multi-page papers concurrently.
-	 * Backed by a concurrent Fork-Join-Fork alignment model using TaskExecutor.
+	 * Orchestrates the full grading pipeline for multi-page papers synchronously.
+	 * Executes sequential transcription, alignment, and evaluation steps.
 	 */
 	public ExamEvaluationDto evaluateEntireExamPipeline(
 			byte[] paperBytes,
 			byte[] rubricBytes, 
 			byte[] solutionBytes) throws Exception {
 
-		log.info("Starting Concurrency Phase 1: Forking Student Paper & Solution Transcriptions...");
+		log.info("Starting Sequential Phase 1: Processing Student Paper & Solution Transcriptions...");
 
-		// FORK Phase 1: Run both transcription tasks concurrently on separate threads
-		CompletableFuture<TranscribedExamDto> transcribeAndSegmentPaperFuture = CompletableFuture.supplyAsync(() -> {
-			try {
-				return transcribeAndSegmentPaper(paperBytes);
-			} catch (Exception e) {
-				throw new RuntimeException("Failed to transcribe student paper", e);
-			}
-		}, taskExecutor);
-
-		CompletableFuture<TranscribedSolutionsDto> transcribeOfficialSolutionsFuture = CompletableFuture.supplyAsync(() -> {
-			try {
-				return transcribeOfficialSolutions(solutionBytes);
-			} catch (Exception e) {
-				throw new RuntimeException("Failed to transcribe official solutions", e);
-			}
-		}, taskExecutor);
-
-		// BARRIER Phase 1: Block synchronously until both parallel transcription operations finish
-		CompletableFuture.allOf(transcribeAndSegmentPaperFuture, transcribeOfficialSolutionsFuture).join();
-
-		TranscribedExamDto transcription = transcribeAndSegmentPaperFuture.join();
-		TranscribedSolutionsDto officialSolutions = transcribeOfficialSolutionsFuture.join();
+		// Sequential Execution: No TaskExecutor or CompletableFuture needed here anymore
+		TranscribedExamDto transcription = transcribeAndSegmentPaper(paperBytes);
+		TranscribedSolutionsDto officialSolutions = transcribeOfficialSolutions(solutionBytes);
 
 		log.info(
 				"Transcription completed.\n" + "Student: {}, ID: {}, Subject: {}, Class: {}, Date: {}\n"
@@ -409,14 +431,13 @@ public class GradingService {
 		// Compile rubric into digital resources (rubrics are short and global, so we can keep as PDF)
 		Resource rubricPdf = new ByteArrayResource(rubricBytes);
 
-		log.info("Starting Concurrency Phase 2: Forking Evaluations for all {} matched questions...", alignedTranscription.questions().size());
+		log.info("Starting Sequential Phase 2: Evaluating all {} matched questions...", alignedTranscription.questions().size());
 
-		// FORK Phase 2: Launch parallel grading tasks for each matched aligned question block
-		List<CompletableFuture<QuestionEvaluationDto>> evaluatedQuestionsFutures = new ArrayList<>();
+		List<QuestionEvaluationDto> evaluatedQuestions = new ArrayList<>();
 
 		for (TranscribedQuestionDto alignedQuestion : alignedTranscription.questions()) {
 
-			log.info("Scheduling Evaluation for Official Question ID: {}", alignedQuestion.questionId());
+			log.info("Evaluating Official Question ID: {}", alignedQuestion.questionId());
 
 			// In-memory lookup: Match strictly by the cleaned, AI-aligned questionId
 			final TranscribedSolutionQuestionDto matchedSolution = officialSolutions.questions().stream()
@@ -429,32 +450,19 @@ public class GradingService {
 						alignedQuestion.questionId());
 			}
 
-			// Schedule individual question grading on parallel thread pools with high fault-tolerance
-			CompletableFuture<QuestionEvaluationDto> evaluateSingleQuestionFuture = CompletableFuture.supplyAsync(() -> {
-				try {
-					log.info("Async Thread [Evaluation - {}] started.", alignedQuestion.questionId());
-					return evaluateSingleQuestion(
-							alignedQuestion, 
-							matchedSolution, 
-							rubricPdf
-					);
-				} catch (Exception e) {
-					log.error("Failed to evaluate question ID: {}", alignedQuestion.questionId(), e);
-					// Fallback dynamically so one failing question thread doesn't crash the entire transaction execution
-					return createFallbackEvaluation(alignedTranscription.studentName(), alignedQuestion, e.getMessage());
-				}
-			}, taskExecutor);
-
-			evaluatedQuestionsFutures.add(evaluateSingleQuestionFuture);
+			try {
+				QuestionEvaluationDto evalDto = evaluateSingleQuestion(
+						alignedQuestion, 
+						matchedSolution, 
+						rubricPdf
+				);
+				evaluatedQuestions.add(evalDto);
+			} catch (Exception e) {
+				log.error("Failed to evaluate question ID: {}", alignedQuestion.questionId(), e);
+				// Fallback dynamically so one failing question doesn't crash the entire transaction execution
+				evaluatedQuestions.add(createFallbackEvaluation(alignedTranscription.studentName(), alignedQuestion, e.getMessage()));
+			}
 		}
-
-		// BARRIER Phase 2: Wait until all parallel question evaluation threads complete their executions
-		CompletableFuture.allOf(evaluatedQuestionsFutures.toArray(new CompletableFuture[0])).join();
-
-		// JOIN Phase: Safely map and collect completed futures
-		List<QuestionEvaluationDto> evaluatedQuestions = evaluatedQuestionsFutures.stream()
-				.map(CompletableFuture::join)
-				.toList();
 
 		// AGGREGATION Phase: Dynamically calculate final scored marks and paper weightings
 		int totalMaxMarks = 0;

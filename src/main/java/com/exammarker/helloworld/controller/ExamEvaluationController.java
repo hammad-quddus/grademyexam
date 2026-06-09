@@ -18,7 +18,7 @@ import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
-import com.exammarker.helloworld.evaluation.ExamEvaluationService;
+import com.exammarker.helloworld.evaluation.EvaluationService;
 import com.exammarker.helloworld.evaluation.dto.ExamEvaluationDto;
 import com.exammarker.helloworld.evaluation.dto.ExamEvaluationSummaryDto;
 import com.exammarker.helloworld.service.GradingService;
@@ -33,11 +33,11 @@ public class ExamEvaluationController {
     private static final Logger log =
             LoggerFactory.getLogger(ExamEvaluationController.class);
 	
-	private final ExamEvaluationService examEvaluationService;
+	private final EvaluationService examEvaluationService;
 	private final ExamPdfService examPdfService;
 	private final GradingService gradingService;
 
-	public ExamEvaluationController(ExamEvaluationService examEvaluationService, ExamPdfService examPdfService, GradingService gradingService) {
+	public ExamEvaluationController(EvaluationService examEvaluationService, ExamPdfService examPdfService, GradingService gradingService) {
 		this.examEvaluationService = examEvaluationService;
 		this.examPdfService = examPdfService;
 		this.gradingService = gradingService;

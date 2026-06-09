@@ -9,8 +9,10 @@ import com.exammarker.helloworld.evaluation.dto.ExamEvaluationSummaryDto;
 import com.exammarker.helloworld.jobs.Job;
 import com.exammarker.helloworld.service.GradingService;
 
+import jakarta.transaction.Transactional;
+
 @Service
-public class ExamEvaluationService {
+public class EvaluationService {
 
     private final ExamEvaluationRepository examEvaluationRepository;
     private final GradingService gradingService;
@@ -18,7 +20,7 @@ public class ExamEvaluationService {
     
     
     
-    public ExamEvaluationService(ExamEvaluationRepository examEvaluationRepository, 
+    public EvaluationService(ExamEvaluationRepository examEvaluationRepository, 
     		GradingService gradingService) {
 
 		this.examEvaluationRepository = examEvaluationRepository;
@@ -41,7 +43,7 @@ public class ExamEvaluationService {
                 .toList();
     }   
     
- 
+    @Transactional
     public void processPaper(
             Job job,
             byte[] paper,

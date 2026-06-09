@@ -12,7 +12,7 @@ import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
-import com.exammarker.helloworld.evaluation.ExamEvaluationService;
+import com.exammarker.helloworld.evaluation.EvaluationService;
 import com.exammarker.helloworld.evaluation.dto.ExamEvaluationDto;
 import com.exammarker.helloworld.evalutation.dto.solution.TranscribedSolutionsDto;
 import com.exammarker.helloworld.evalutation.dto.studentpaper.TranscribedExamDto;
@@ -30,10 +30,10 @@ public class ExamController {
     
     
     private final GradingService gradingService;
-    private final ExamEvaluationService examEvaluationService;
+    private final EvaluationService examEvaluationService;
 
 
-    public ExamController(GradingService service, ExamEvaluationService examEvaluationService) {
+    public ExamController(GradingService service, EvaluationService examEvaluationService) {
         this.gradingService = service;
         this.examEvaluationService = examEvaluationService;
 
