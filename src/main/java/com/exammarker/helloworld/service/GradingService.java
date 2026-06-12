@@ -3,7 +3,6 @@ package com.exammarker.helloworld.service;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
-import java.util.concurrent.CompletableFuture;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -19,13 +18,13 @@ import org.springframework.core.io.Resource;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.util.MimeTypeUtils;
-import org.springframework.web.multipart.MultipartFile;
 
 import com.exammarker.helloworld.evaluation.dto.BandDto;
 import com.exammarker.helloworld.evaluation.dto.ConfidenceDto;
 import com.exammarker.helloworld.evaluation.dto.EvaluationDto;
 import com.exammarker.helloworld.evaluation.dto.ExamEvaluationDto;
 import com.exammarker.helloworld.evaluation.dto.QuestionEvaluationDto;
+import com.exammarker.helloworld.evalutation.dto.rubric.RubricDto;
 import com.exammarker.helloworld.evalutation.dto.rubric.RubricReferenceDto;
 import com.exammarker.helloworld.evalutation.dto.solution.TranscribedSolutionQuestionDto;
 import com.exammarker.helloworld.evalutation.dto.solution.TranscribedSolutionsDto;
@@ -53,6 +52,92 @@ public class GradingService {
 		this.objectMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 	}
 
+	public RubricDto transcribeRubric(byte[] rubricPdfBytes) throws Exception {
+
+		Resource rubricResource = new ByteArrayResource(rubricPdfBytes);
+		
+		
+		SystemMessage systemMessage = new SystemMessage("""
+				You are an AI specialized in transforming academic assessment rubrics into structured JSON.
+
+			    Task:
+			    Analyze the attached Rubric PDF. Extract the grading levels, assessment objectives (AO), mark schemes, 
+			    and descriptors, and map them to the provided JSON schema.
+			
+			    Normalization Rules:
+			    1. Contextual Marks: Since Question 1(a) and Questions 2-5 have different mark allocations for the same level, 
+			       create a granular representation in the JSON. If a level applies to both, assign the specific mark range 
+			       to each question type context within the level object.
+			    2. Best-Fit Logic: Ensure the 'descriptor' and 'characteristics' are verbatim or summarized clearly for 
+			       'best-fit' evaluation.
+			    3. Structural Cleanliness: 
+			       - Do NOT output markdown code blocks.
+			       - Do NOT output preamble or conversational text.
+			       - Return ONLY raw JSON.
+
+				OUTPUT:
+				Must strictly follow JSON schema.
+				No extra fields.
+				No commentary.
+
+				JSON Schema:
+				{
+				  "rubricId": "string",
+				  "subject": "string",
+				  "rubricCategories": [
+				    {
+				      "rubricCategoryId": "string",
+				      "assessmentObjective": "string",
+				      "description": "string",
+				      "scoringRule": "best-fit",
+				      "levels": [
+				        {
+				          "levelId": "string",
+				          "levelNumber": 0,
+				          "markRange": {
+				            "min": 0,
+				            "max": 0
+				          },
+				          "descriptor": "string",
+				          "characteristics": [ "string" ],
+				          "evidenceKeywords": [ "string" ]
+				        }
+				      ]
+				    }
+				  ],
+				  "questionMappings": [
+				    {
+				      "questionId": "string",
+				      "rubricCategoryId": "string",
+				      "maxMarks": 0
+				    }
+				  ]
+				}
+				""");
+
+		UserMessage rubricMessage = UserMessage.builder().text("This is the grading rubric.")
+				.media(new Media(MimeTypeUtils.parseMimeType("application/pdf"), rubricResource)).build();
+
+		Prompt prompt = new Prompt(List.of(systemMessage, rubricMessage));
+
+		ChatResponse response;
+		try {
+			response = chatModel.call(prompt);
+		} catch (Exception e) {
+			throw new RuntimeException("AI parsing failed", e);
+		}
+
+		var raw = response.getResult().getOutput().getText();
+		raw = extractJsonBlock(raw);
+		log.info("====== Response from ai model for rubric transcription: ========");
+		log.info(raw);
+
+		objectMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+		return objectMapper.readValue(raw, RubricDto.class);
+	}
+	
+	
+	
 
 	/**
 	 * Phase 1b: Transcribes and structures out-of-order official exam solutions and marking criteria.
@@ -225,7 +310,7 @@ public class GradingService {
 	 * Strictly adheres to its 3-parameter signature.
 	 */
 	public QuestionEvaluationDto evaluateSingleQuestion(TranscribedQuestionDto transcribedQuestion,
-			TranscribedSolutionQuestionDto matchedSolution, Resource rubricPdf) {
+			TranscribedSolutionQuestionDto matchedSolution, RubricDto rubric) {
 
 		SystemMessage systemMessage = new SystemMessage(
 				"""
@@ -296,12 +381,19 @@ public class GradingService {
 				String.join("\n- ", matchedSolution.officialSolutionKeyPoints()), matchedSolution.markingGuidelines())
 				: "--- OFFICIAL EXAM SOLUTION ---\nNo matching official solution segment was successfully transcribed for this question ID.";
 
+		// Replace the current rubricText assignment:
+		String rubricText;
+		try {
+		    rubricText = "Rubric:\n" + objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(rubric);
+		} catch (Exception e) {
+		    log.warn("Failed to serialize rubric to JSON, falling back to toString()");
+		    rubricText = "Rubric: " + rubric.toString();
+		}		
+		
 		UserMessage studentMessage = UserMessage.builder().text(studentAnswerChunk).build();
 		UserMessage solutionsMessage = UserMessage.builder().text(solutionsText).build();
 
-		UserMessage rubricMessage = UserMessage.builder()
-				.text("This is the global marking criteria / grade boundary rubrics.")
-				.media(new Media(MimeTypeUtils.parseMimeType("application/pdf"), rubricPdf)).build();
+		UserMessage rubricMessage = UserMessage.builder().text(rubricText).build();
 
 		Prompt prompt = new Prompt(List.of(systemMessage, rubricMessage, solutionsMessage, studentMessage));
 		ChatResponse response = chatModel.call(prompt);
@@ -428,11 +520,14 @@ public class GradingService {
 		// AI ALIGNMENT PHASE: Fast text-only pass utilizing TranscribedExamDto directly to align structures and split blocks
 		TranscribedExamDto alignedTranscription = alignTranscriptionsWithAI(transcription, officialSolutions);
 
-		// Compile rubric into digital resources (rubrics are short and global, so we can keep as PDF)
-		Resource rubricPdf = new ByteArrayResource(rubricBytes);
+
+		log.info("======= transcribing rubric ===========");
+		RubricDto rubricDto = transcribeRubric(rubricBytes);
+
 
 		log.info("Starting Sequential Phase 2: Evaluating all {} matched questions...", alignedTranscription.questions().size());
 
+		
 		List<QuestionEvaluationDto> evaluatedQuestions = new ArrayList<>();
 
 		for (TranscribedQuestionDto alignedQuestion : alignedTranscription.questions()) {
@@ -451,10 +546,11 @@ public class GradingService {
 			}
 
 			try {
+				
 				QuestionEvaluationDto evalDto = evaluateSingleQuestion(
 						alignedQuestion, 
 						matchedSolution, 
-						rubricPdf
+						rubricDto
 				);
 				evaluatedQuestions.add(evalDto);
 			} catch (Exception e) {

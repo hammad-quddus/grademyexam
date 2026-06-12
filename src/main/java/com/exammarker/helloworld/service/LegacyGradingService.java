@@ -155,30 +155,34 @@ public class LegacyGradingService {
 		return dto;
 	}
 
+//	public RubricDto transcribeRubric(List<MultipartFile> rubricImages) throws Exception {
+//		byte[] rubricPdfBytes = rubricImages.get(0).getBytes();
+//		Resource rubricPdf = new ByteArrayResource(rubricPdfBytes);
+//		return transcribeRubric(rubricPdf);
+//	}
+
 	public RubricDto transcribeRubric(List<MultipartFile> rubricImages) throws Exception {
-		byte[] rubricPdfBytes = pdfAssemblyService.imagesToPdf(rubricImages);
-		Resource rubricPdf = new ByteArrayResource(rubricPdfBytes);
-		return transcribeRubric(rubricPdf);
-	}
-
-	public RubricDto transcribeRubric(Resource rubricPdf) throws Exception {
+		byte[] rubricPdfBytes = rubricImages.get(0).getBytes();
+		Resource rubricResource = new ByteArrayResource(rubricPdfBytes);
+		
+		
 		SystemMessage systemMessage = new SystemMessage("""
-You are an AI specialized in transforming academic assessment rubrics into structured JSON.
+				You are an AI specialized in transforming academic assessment rubrics into structured JSON.
 
-    Task:
-    Analyze the attached Rubric PDF. Extract the grading levels, assessment objectives (AO), mark schemes, 
-    and descriptors, and map them to the provided JSON schema.
-
-    Normalization Rules:
-    1. Contextual Marks: Since Question 1(a) and Questions 2-5 have different mark allocations for the same level, 
-       create a granular representation in the JSON. If a level applies to both, assign the specific mark range 
-       to each question type context within the level object.
-    2. Best-Fit Logic: Ensure the 'descriptor' and 'characteristics' are verbatim or summarized clearly for 
-       'best-fit' evaluation.
-    3. Structural Cleanliness: 
-       - Do NOT output markdown code blocks.
-       - Do NOT output preamble or conversational text.
-       - Return ONLY raw JSON.
+			    Task:
+			    Analyze the attached Rubric PDF. Extract the grading levels, assessment objectives (AO), mark schemes, 
+			    and descriptors, and map them to the provided JSON schema.
+			
+			    Normalization Rules:
+			    1. Contextual Marks: Since Question 1(a) and Questions 2-5 have different mark allocations for the same level, 
+			       create a granular representation in the JSON. If a level applies to both, assign the specific mark range 
+			       to each question type context within the level object.
+			    2. Best-Fit Logic: Ensure the 'descriptor' and 'characteristics' are verbatim or summarized clearly for 
+			       'best-fit' evaluation.
+			    3. Structural Cleanliness: 
+			       - Do NOT output markdown code blocks.
+			       - Do NOT output preamble or conversational text.
+			       - Return ONLY raw JSON.
 
 				OUTPUT:
 				Must strictly follow JSON schema.
@@ -221,7 +225,7 @@ You are an AI specialized in transforming academic assessment rubrics into struc
 				""");
 
 		UserMessage rubricMessage = UserMessage.builder().text("This is the grading rubric.")
-				.media(new Media(MimeTypeUtils.parseMimeType("application/pdf"), rubricPdf)).build();
+				.media(new Media(MimeTypeUtils.parseMimeType("application/pdf"), rubricResource)).build();
 
 		Prompt prompt = new Prompt(List.of(systemMessage, rubricMessage));
 
