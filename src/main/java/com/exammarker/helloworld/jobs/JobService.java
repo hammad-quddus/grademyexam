@@ -70,6 +70,9 @@ public class JobService {
             List<MultipartFile> solution
     ) throws IOException {
 
+    	job.setStatus(JobStatus.PROCESSING);
+    	jobRepository.save(job);
+    	
         log.info("Preparing batch upload bytes for Job ID: {} before entering async boundary...", job.getId());
 
         // Convert files to byte arrays once BEFORE crossing the async boundary

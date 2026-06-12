@@ -13,6 +13,7 @@ import org.springframework.ai.content.Media;
 import org.springframework.ai.converter.BeanOutputConverter;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.core.io.Resource;
+import org.springframework.stereotype.Service;
 import org.springframework.util.MimeTypeUtils;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -21,6 +22,7 @@ import com.exammarker.helloworld.evalutation.dto.rubric.RubricDto;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+@Service
 public class LegacyGradingService {
 	private static final Logger log = LoggerFactory.getLogger(GradingService.class);
 
@@ -161,43 +163,22 @@ public class LegacyGradingService {
 
 	public RubricDto transcribeRubric(Resource rubricPdf) throws Exception {
 		SystemMessage systemMessage = new SystemMessage("""
-				You are a rubric transcription engine.
+You are an AI specialized in transforming academic assessment rubrics into structured JSON.
 
-				TASK:
-				Extract and normalize the rubric from the attached PDF into the provided JSON schema.
+    Task:
+    Analyze the attached Rubric PDF. Extract the grading levels, assessment objectives (AO), mark schemes, 
+    and descriptors, and map them to the provided JSON schema.
 
-				STRICT RULES:
-				- Only extract information explicitly present in the rubric.
-				- Do NOT infer missing grading structures.
-				- Do NOT rewrite or reinterpret descriptors.
-				- Preserve rubric meaning as closely as possible.
-				- Rubric categories may apply to multiple questions or question types.
-				- Preserve assessment objective groupings if present (e.g. AO1, AO2).
-				- Do not convert rubric categories into individual exam questions.
-
-				QUESTION MAPPING RULES:
-				- Each question must be represented individually.
-				- Do NOT group questions into ranges or sets.
-				- questionId MUST refer to exactly ONE question.
-				- questionId MUST NOT contain ranges, intervals, or multiple values (e.g., "Q2-5a" is invalid).
-				- Use atomic identifiers only (e.g., "Q1a", "Q2b").
-				- If a rubric category applies to multiple questions, repeat the mapping entry for each questionId.
-				- Do NOT compress or merge question mappings.
-
-				IMPORTANT:
-				- Do NOT infer question grouping, numbering patterns, or implied ranges from layout or sequence.
-				- Treat each visually distinct question boundary as a separate entity.
-				- If uncertain, prefer over-segmentation (create more question entries rather than fewer).
-				- If a question boundary is unclear, still create a separate entity rather than merging.
-
-				If information is unclear or unreadable:
-				- set field to null
-
-				Ignore:
-				- formatting artifacts
-				- OCR noise
-				- repeated text
-				- layout inconsistencies
+    Normalization Rules:
+    1. Contextual Marks: Since Question 1(a) and Questions 2-5 have different mark allocations for the same level, 
+       create a granular representation in the JSON. If a level applies to both, assign the specific mark range 
+       to each question type context within the level object.
+    2. Best-Fit Logic: Ensure the 'descriptor' and 'characteristics' are verbatim or summarized clearly for 
+       'best-fit' evaluation.
+    3. Structural Cleanliness: 
+       - Do NOT output markdown code blocks.
+       - Do NOT output preamble or conversational text.
+       - Return ONLY raw JSON.
 
 				OUTPUT:
 				Must strictly follow JSON schema.
@@ -252,11 +233,23 @@ public class LegacyGradingService {
 		}
 
 		var raw = response.getResult().getOutput().getText();
+		raw = extractJsonBlock(raw);
 		log.info("====== Response from ai model for rubric transcription: ========");
 		log.info(raw);
 
 		objectMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 		return objectMapper.readValue(raw, RubricDto.class);
+	}
+	
+	private String extractJsonBlock(String text) {
+	    int start = text.indexOf("{");
+	    int end = text.lastIndexOf("}");
+
+	    if (start == -1 || end == -1 || end <= start) {
+	        throw new RuntimeException("No valid JSON found in LLM output:\n" + text);
+	    }
+
+	    return text.substring(start, end + 1);
 	}
 
 }

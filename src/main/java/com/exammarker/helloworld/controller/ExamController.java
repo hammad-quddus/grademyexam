@@ -14,9 +14,8 @@ import org.springframework.web.multipart.MultipartFile;
 
 import com.exammarker.helloworld.evaluation.EvaluationService;
 import com.exammarker.helloworld.evaluation.dto.ExamEvaluationDto;
-import com.exammarker.helloworld.evalutation.dto.solution.TranscribedSolutionsDto;
-import com.exammarker.helloworld.evalutation.dto.studentpaper.TranscribedExamDto;
-import com.exammarker.helloworld.service.GradingService;
+import com.exammarker.helloworld.evalutation.dto.rubric.RubricDto;
+import com.exammarker.helloworld.service.LegacyGradingService;
 import com.exammarker.helloworld.service.PdfAssemblyService;
 
 
@@ -29,12 +28,12 @@ public class ExamController {
             LoggerFactory.getLogger(PdfAssemblyService.class);
     
     
-    private final GradingService gradingService;
+    private final LegacyGradingService legacyGradingService;
     private final EvaluationService examEvaluationService;
 
 
-    public ExamController(GradingService service, EvaluationService examEvaluationService) {
-        this.gradingService = service;
+    public ExamController(LegacyGradingService legacyGradingService, EvaluationService examEvaluationService) {
+        this.legacyGradingService = legacyGradingService;
         this.examEvaluationService = examEvaluationService;
 
     }
@@ -63,23 +62,23 @@ public class ExamController {
 //
 //    	log.info("endpoint: transcribesolution...");
 // 
-//    	return gradingService.transcribeOfficialSolutions(solutionImages);
+//    	return legacyGradingService.transcribeOfficialSolutions(solutionImages);
 //
 //    }
    
     
-//    @PostMapping(value = "/transcriberubric", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-//    public RubricDto transcribeRubric(
-//
-//    		@RequestPart(value = "rubric", required = true) List<MultipartFile> rubricImages
-//
-//    ) throws Exception {
-//
-//    	log.info("endpoint: transcriberubric...");
-// 
-//    	return gradingService.transcribeRubric(rubricImages);
-//
-//    }
+    @PostMapping(value = "/transcriberubric", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public RubricDto transcribeRubric(
+
+    		@RequestPart(value = "rubric", required = true) List<MultipartFile> rubricImages
+
+    ) throws Exception {
+
+    	log.info("endpoint: transcriberubric...");
+ 
+    	return legacyGradingService.transcribeRubric(rubricImages);
+
+    }
     
 //    @PostMapping(value = "/evaluate", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
 //    public QuestionEvaluationDto evaluate(
